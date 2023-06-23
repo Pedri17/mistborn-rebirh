@@ -15,7 +15,7 @@ function main() {
   // Register a callback function that corresponds to when a new player is initialized.
   mod.AddCallback(ModCallback.POST_PLAYER_INIT, postPlayerInit);
   // allomancy();
-
+  // bueno carallo bueno
 }
 
 function postPlayerInit() {
