@@ -1,4 +1,0 @@
-<items gfxroot="gfx/items/" version="0">
-  <passive cache="" name="Steel-Lerasium alloy" description="Push!" gfx="Steel_lerasium_alloy.png" />
-  <passive cache="" name="Iron-Lerasium alloy" description="Pull!" gfx="Iron_lerasium_alloy.png" />
-</items>

@@ -1,0 +1,33 @@
+<entities anm2root="gfx/" version="5">
+    <entity anm2path="effects/coin/object_coin.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="8" collisionRadius="12" friction="1" id="2" name="Metalic piece" numGridCollisionPoints="8" shadowSize="8" stageHP="0" variant="34">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="effects/coin/object_coin.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="8" collisionRadius="12" friction="0.96" id="5" name="Throwed coin" numGridCollisionPoints="16" shadowSize="10" stageHP="0" variant="500" subtype="1">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="effects/knife/tear_knife.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="5" name="Knife anchorage" numGridCollisionPoints="8" shadowSize="8" stageHP="0" variant="500" subtype="2">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="effects/plate/object_plate.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="3" collisionRadius="12" friction="1" id="5" name="Plate piece" numGridCollisionPoints="8" shadowSize="8" stageHP="0" variant="500" subtype="3">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="effects/bottle/pickup_mineral_bottle.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="8" collisionRadius="12" friction="1" id="5" name="Bottle" numGridCollisionPoints="24" shadowSize="14" stageHP="0" variant="501" subtype="1">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="effects/mark/pickup_mark.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="8" collisionRadius="12" friction="0" id="5" name="Iron Floor mark" numGridCollisionPoints="24" shadowSize="0" stageHP="0" variant="502" subtype="0">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="effects/mark/pickup_mark.anm2" baseHP="0" boss="0" champion="0" collisionDamage="0" collisionMass="8" collisionRadius="12" friction="0" id="5" name="Steel Floor mark" numGridCollisionPoints="24" shadowSize="0" stageHP="0" variant="502" subtype="1">
+        <gibs amount="0" blood="0" bone="0" eye="0" gut="0" large="0" />
+    </entity>
+    <entity anm2path="enemies/allomancer/enemy_allomancer_Iron.anm2" reroll="false" baseHP="50" boss="0" champion="1" collisionDamage="1" id="610" collisionMass="5" collisionRadius="13" friction="1" name="Iron Enemy Allomancer" numGridCollisionPoints="12" shadowSize="16" stageHP="0" variant="0" portrait="0">
+		<bestiary transform="0,0,1" anim="WalkDown" overlay="HeadDown" />
+        <gibs amount="8" blood="1" bone="1" eye="1" gut="1" large="0" />
+        <preload-snd id="265" /> <!-- SOUND_SUMMONSOUND -->
+    </entity>
+    <entity anm2path="enemies/allomancer/enemy_allomancer_Steel.anm2" reroll="false" baseHP="35" boss="0" champion="1" collisionDamage="1" id="610" collisionMass="5" collisionRadius="13" friction="1" name="Steel Enemy Allomancer" numGridCollisionPoints="12" shadowSize="16" stageHP="0" variant="1" portrait="0">
+		<bestiary transform="0,0,1" anim="WalkDown" overlay="HeadDown" />
+        <gibs amount="8" blood="1" bone="1" eye="1" gut="1" large="0" />
+        <preload-snd id="265" /> <!-- SOUND_SUMMONSOUND -->
+    </entity>
+</entities>
