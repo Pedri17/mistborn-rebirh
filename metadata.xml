@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+    <name>MistbornRebirth</name>
+    <directory>mistbornrebirth</directory>
+    <id>2759827035</id>
+    <description>A mod based on Mistborn's saga by Brandon Sanderson, introducing mechanics, items, enemies and powers from this universe.
+
+[h1][b]Features[/b][/h1]
+[list]
+[*] Custom coin tears, allowing to shot your own coins and pick them up
+[*] [b]Iron Allomancy:[/b] Pull your own coins, another metalic entities or use it gracefully to move yourself!
+[*] [b]Steel Allomancy:[/b] Push your own coins to make piercing and power shots, push enemies to hit them against the wall or push yourself to them!
+[*] Amazing synergies between items, coins and powers!
+[*] A resource system to use the powers with custom pickups and powerful enemies
+[*] [b]The Allomancer:[/b] A new character with Iron and Steel powers from the beginning
+[*]     Custom completion note to save your progress
+[*]     Fully coop compatibility up to 4 players
+[/list]
+
+[h1][b]The Allomancer[/b][/h1]
+A custom character from Mistborn's saga, push and pull pickups, coins, enemies, your own tears or even yourself with its powers!
+
+Activate your powers [RT/Ctrl] and replace your usual projectiles to your own coins (wasting them and picking them up) duplicating your damage and reducing your tear rate. In this mode use your powers [LT/Q or RB/Space] to select metalic entities toward you're facing, keep it to push/pull them as long as they can, then you will be pushed/pulled just the same!
+
+Complete its own note, play with your friends or just enjoy being a allomancer.
+
+[h1][b]Devised future content[/b][/h1]
+[b]Mid term content:[/b] Balance it properly, a spanish translation (lo siento gente), improve some graphics and new animations, custom commands and some mod compatibilities.
+
+[b]Long term content:[/b] New allomantic powers (as cadmium, bendalloy, pewter, zinc or brass), some feruchemy powers (steel, pewter, chromium, bendalloy or gold), hemalurgy (obtain new powers easly!), various Mistborn's items (as Ettmetal's bomb, Kandra familiar, etc), a unique way to obtain this items and powers, a second character (Tainted Allomancer) and various unlocks for this characters!
+
+[h1][b]Credits[/b][/h1]
+[b]Pedri17[/b]: Programmer, designer and a big Sanderson's fan.
+
+[b]Special thanks to:[/b] 
+
+[b]-JSG:[/b] for make the completion note's mod, I took various things (specially the shader) to make it on my own mod.
+
+[b]-Lytebringr:[/b] for your amazing tutorials to start and learn a lot about modding.
+
+[b]-Alexelcapo:[/b] por hacerme descubrir de pequeño el TBOI, introducirme a la lectura y al cosmere y por tu gran habilidad entreteniéndome todos estos años :).
+
+[b]-Testers:[/b] @guadatari por interesarte desde el principio por el mod y probarlo, @9lopez_ y a todos los que me lo pidieron y no tuve tiempo para dejároslo (lo siento ^^').
+
+[b]-La comunidad hispanohablante del cosmere:[/b] Gracias por interesaros por el mod desde el principio, darme ideas y compartirlo, sois geniales :D.
+
+[h1][b]Bugs, balance, ideas and comments[/b][/h1]
+If you want to share me something feel free to write me in this page on the proper comment section or directly to me if you want (@Pedri179 on twitter).
+
+Comment your impressions about the mod, feedback or ideas are enormously welcome.
+
+I'm a Spanish without much experience in English, if you see big mistakes say it to me without fear.
+
+How you can see I'm not either a big artist, if you like this Mod and wants to contribute to the art ask me without any problem. </description>
+    <version>0.9</version>
+    <visibility>Public</visibility>
+    <tag id="Lua"/>
+    <tag id="Items"/>
+    <tag id="Pickups"/>
+    <tag id="Player Characters"/>
+    <tag id="Enemies"/>
+    <tag id="Graphics"/>
+    <tag id="Sound Effects"/>
+</metadata>

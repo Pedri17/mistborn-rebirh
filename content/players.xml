@@ -1,0 +1,10 @@
+<players root="gfx/characters/" 
+         portraitroot="gfx/characters/" 
+         nameimageroot="gfx/characters/" 
+         bigportraitroot="gfx/ui/stage/">
+	<player name="The Allomancer" skin="TheAllomancer/character_allomancer.png" costume="132" coins="3" hp="6" items="733,734" 
+          nameimage="TheAllomancer/name_allomancer.png" 
+          portrait="TheAllomancer/playerportrait_allomancer.png" 
+          bigportrait="TheAllomancer/playerportrait_allomancer.png" skinColor="-1"
+		  birthright="not done" />
+</players>

@@ -1,0 +1,16 @@
+<sounds root="sfx/">
+
+	<sound name="drink">
+		<sample weight="1" path="drink.wav"/>
+	</sound>
+	<sound name="coinHit">
+		<sample weight="1" path="coin hit.wav"/>
+	</sound>
+	<sound name="entityCrash">
+		<sample weight="1" path="crash.wav"/>
+	</sound>
+	<sound name="glassFall">
+		<sample weight="1" path="glass fall.wav"/>
+	</sound>
+
+</sounds>
