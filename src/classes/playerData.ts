@@ -1,3 +1,4 @@
+import { VectorZero } from "isaacscript-common";
 import { Power } from "../enums/Power";
 
 export class playerData {
@@ -9,4 +10,12 @@ export class playerData {
     [2]: undefined,
     [3]: undefined,
   };
+  lastShot = {
+    frame: 0,
+    direction: VectorZero,
+  };
+
+  // iron/steel variables
+  selectedEntities: Entity[] = [];
+  gridTouched: boolean = false;
 }

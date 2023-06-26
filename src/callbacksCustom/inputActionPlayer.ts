@@ -4,7 +4,14 @@ import { mod } from "../mod";
 import * as power from "../powers/power";
 
 export function init() {
-  mod.AddCallbackCustom(ModCallbackCustom.INPUT_ACTION_PLAYER, main);
+  mod.AddCallbackCustom(
+    ModCallbackCustom.INPUT_ACTION_PLAYER,
+    main,
+    undefined,
+    undefined,
+    InputHook.IS_ACTION_TRIGGERED,
+    undefined,
+  );
 }
 
 function main(
