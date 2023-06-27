@@ -4,22 +4,22 @@ import {
   getPlayerIndex,
   isActionPressed,
   isActionTriggered,
-  log,
 } from "isaacscript-common";
 import * as config from "../config";
 import * as entity from "../entities/entity";
 import { playersData } from "../entities/player";
 import { Power } from "../enums/Power";
 import { mod } from "../mod";
+import * as allomancyIronSteel from "./allomancyIronSteel";
 
 const preconf = {
   ALLOMANCY_BAR_MAX: 2500,
 };
 
 // BOOLEAN
-
+// TODO: expected to players, change for npcs
 function hasAnyPower(ent: Entity) {
-  let data = entity.getData(ent);
+  let data = entity.getPlayerData(ent);
   if (data !== undefined) {
     return (
       data.powers[1] !== undefined ||
@@ -33,7 +33,7 @@ function hasAnyPower(ent: Entity) {
 
 function hasPower(ent: Entity, power: Power) {
   const pyr = ent.ToPlayer();
-  let pData = entity.getData(ent);
+  let pData = entity.getPlayerData(ent);
   if (pyr !== undefined) {
     return (
       pData.powers[1] === power ||
@@ -47,8 +47,14 @@ function hasPower(ent: Entity, power: Power) {
 
 // ACTIVE
 
-function usePower(ent: Entity, power: Power) {
-  log(`${ent} is using ${power}`);
+function usePower(ent: Entity, power: Power, once?: boolean) {
+  if (power === Power.AL_IRON || power === Power.AL_STEEL) {
+    if (once) {
+      allomancyIronSteel.throwTracer(ent);
+    } else {
+      allomancyIronSteel.use(ent, power);
+    }
+  }
 }
 
 // spend minerals bar, expected be executed 60 times/sec
@@ -121,17 +127,29 @@ export function controlIputs() {
             pData.powers[i] !== undefined
           ) {
             // Has a power on this slot
-            usePower(pyr, pData.powers[i]!);
+            usePower(pyr, pData.powers[i]!, true);
+          }
+          if (
+            isActionTriggered(controller, config.powerAction[i]!) &&
+            pData.powers[i] !== undefined
+          ) {
+            // Has a power on this slot
+            usePower(pyr, pData.powers[i]!, false);
           }
         }
       }
 
       // get last direction shoot and that frame
       if (
-        isActionTriggered(controller, ButtonAction.SHOOT_LEFT) ||
-        isActionTriggered(controller, ButtonAction.SHOOT_RIGHT) ||
-        isActionTriggered(controller, ButtonAction.SHOOT_UP) ||
-        isActionTriggered(controller, ButtonAction.SHOOT_DOWN)
+        // !! probar con isMoveActionTriggered
+        isActionTriggered(
+          controller,
+          ButtonAction.SHOOT_LEFT,
+          ButtonAction.SHOOT_RIGHT,
+          ButtonAction.SHOOT_UP,
+          ButtonAction.SHOOT_DOWN,
+        )
+        //isMoveActionTriggered(controller)
       ) {
         pData.lastShot.frame = Isaac.GetFrameCount();
         if (pyr.GetShootingInput() !== undefined) {

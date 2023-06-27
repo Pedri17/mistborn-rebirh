@@ -1,7 +1,8 @@
 import { VectorZero } from "isaacscript-common";
 import { Power } from "../enums/Power";
+import { selecterData } from "./selecterData";
 
-export class playerData {
+export class playerData extends selecterData {
   // Power variables
   controlsChanged: boolean = false;
   mineralBar: number = 0;
@@ -14,8 +15,4 @@ export class playerData {
     frame: 0,
     direction: VectorZero,
   };
-
-  // iron/steel variables
-  selectedEntities: Entity[] = [];
-  gridTouched: boolean = false;
 }
