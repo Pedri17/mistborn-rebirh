@@ -7,9 +7,9 @@ import {
   emptyArray,
   getEntityFromPtrHash,
   log,
-  logEntity,
   vectorEquals,
 } from "isaacscript-common";
+import * as Debug from "../debug";
 import * as entity from "../entities/entity";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
@@ -215,7 +215,7 @@ function selectEntity(fromEnt: Entity, ent: Entity) {
   data.isSelected = true;
   data.gridTouched = false;
   fData.selectedEntities.push(GetPtrHash(ent));
-  logEntity(ent);
+  Debug.addMessage("Seleccionado", ent);
 }
 
 // FOCUS

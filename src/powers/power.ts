@@ -6,10 +6,9 @@ import {
   isActionTriggered,
 } from "isaacscript-common";
 import * as config from "../config";
+import * as dbg from "../debug";
 import * as entity from "../entities/entity";
-import { playersData } from "../entities/player";
 import { Power } from "../enums/Power";
-import { mod } from "../mod";
 import * as allomancyIronSteel from "./allomancyIronSteel";
 
 const preconf = {
@@ -74,12 +73,6 @@ function spendMinerals(ent: Entity, quantity: number): boolean {
 export function initPlayerWithPowers(pyr: EntityPlayer) {
   // Starting values on every player
   // TODO: falta que se carguen si se continúa la run y guardarlos al salir o que tengan valores iniciales ciertos personajes
-
-  //!! temporal para debug
-  mod.togglePlayerDisplay(true);
-  mod.setPlayerDisplay((pyr) => {
-    return `CC: ${playersData[getPlayerIndex(pyr)]!.controlsChanged}`;
-  });
 }
 
 // inputActionPlayer: Block controls when is changed mode
@@ -106,9 +99,10 @@ export function blockInputs(
 // postRender callback (60 times/sec): Controls to use the powers
 export function controlIputs() {
   for (let i = 0; i < game.GetNumPlayers(); i++) {
-    const pyr = Isaac.GetPlayer();
+    const pyr = Isaac.GetPlayer(i);
     const controller = pyr.ControllerIndex;
     let pData = entity.getPlayerData(pyr);
+    dbg.setVariable("Piquete", pData.controlsChanged, pyr);
 
     // players that have any power
     if (hasAnyPower(pyr)) {
