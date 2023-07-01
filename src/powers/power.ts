@@ -6,39 +6,43 @@ import {
 import {
   DefaultMap,
   PlayerIndex,
-  VectorZero,
   addCollectible,
-  game,
+  defaultMapGetHash,
+  defaultMapGetPlayer,
+  getPlayerIndex,
+  getPlayers,
   isActionPressed,
   isActionTriggered,
   log,
-  vectorEquals,
 } from "isaacscript-common";
+import { PlayerData } from "../classes/power/PlayerData";
+import { PowerOwnerData } from "../classes/power/PowerOwnerData";
 import * as config from "../config";
 import { CollectibleTypeCustom } from "../customVariantType/CollectibleTypeCustom";
 import * as dbg from "../debug";
 import { CollectibleTypeCustomToPower } from "../enums/CollectibleTypeCustomToPower";
 import { Power } from "../enums/Power";
-import { getPlayerData, getPowerOwnerData } from "../variables";
+import { mod } from "../mod";
 import * as allomancyIronSteel from "./allomancyIronSteel";
 
 // SAVE DATA
-class PowerOwnerData {
-  powers: Power[] = [];
-}
 
-class PlayerData extends PowerOwnerData {
-  controlsChanged = false;
-  mineralBar = 0;
-}
-
-let vi = {
+const v = {
   run: {
-    playersData: new DefaultMap<PlayerIndex, PlayerData>(
-      () => new PlayerData(),
-    ),
+    player: new DefaultMap<PlayerIndex, PlayerData>(() => new PlayerData()),
+  },
+  room: {
+    npc: new DefaultMap<PtrHash, PowerOwnerData>(() => new PowerOwnerData()),
   },
 };
+
+export function init(): void {
+  mod.saveDataManager("powers", v);
+}
+
+export function hasControlsChanged(pyr: EntityPlayer): boolean {
+  return defaultMapGetPlayer(v.run.player, pyr).controlsChanged;
+}
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const preconf = {
@@ -46,9 +50,16 @@ const preconf = {
 };
 
 // BOOLEAN
-// TODO: expected to players, change for npcs
 export function hasAnyPower(ent: Entity): boolean {
-  const data = getPowerOwnerData(ent);
+  let data: PowerOwnerData;
+  const pyr = ent.ToPlayer();
+  if (ent.ToNPC() !== undefined) {
+    data = defaultMapGetHash(v.room.npc, ent);
+  } else if (pyr !== undefined) {
+    data = defaultMapGetPlayer(v.run.player, pyr);
+  } else {
+    error("Error: entity type not expected.");
+  }
   return (
     data.powers[0] !== undefined ||
     data.powers[1] !== undefined ||
@@ -57,16 +68,20 @@ export function hasAnyPower(ent: Entity): boolean {
 }
 
 export function hasPower(ent: Entity, power: Power): boolean {
+  let data: PowerOwnerData;
   const pyr = ent.ToPlayer();
-  const pData = getPowerOwnerData(ent);
-  if (pyr !== undefined) {
-    return (
-      pData.powers[0] === power ||
-      pData.powers[1] === power ||
-      pData.powers[2] === power
-    );
+  if (ent.ToNPC() !== undefined) {
+    data = defaultMapGetHash(v.room.npc, ent);
+  } else if (pyr !== undefined) {
+    data = defaultMapGetPlayer(v.run.player, pyr);
+  } else {
+    error("Error: entity type not expected.");
   }
-  error("hasPower: not configured for non player entities");
+  return (
+    data.powers[0] === power ||
+    data.powers[1] === power ||
+    data.powers[2] === power
+  );
 }
 
 // ACTIVE
@@ -101,7 +116,7 @@ function usePower(ent: Entity, power: Power, once?: boolean) {
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
-  const data = getPlayerData(pyr);
+  const data = v.run.player.getAndSetDefault(getPlayerIndex(pyr));
   if (data.mineralBar - quantity >= 0) {
     data.mineralBar -= quantity;
     return true;
@@ -111,8 +126,16 @@ function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
 
 /** Add a power to entityData, later limit player powers. */
 export function addPower(ent: Entity, power: Power): void {
-  log(`${ent} has get ${power} power`);
-  getPowerOwnerData(ent).powers.push(power);
+  const pyr = ent.ToPlayer();
+  let data: PowerOwnerData;
+  if (ent.ToNPC() !== undefined) {
+    data = defaultMapGetHash(v.room.npc, ent);
+  } else if (pyr !== undefined) {
+    data = defaultMapGetPlayer(v.run.player, pyr);
+  } else {
+    error("Error: entity type not expected.");
+  }
+  data.powers.push(power);
 }
 
 // CALLBACKS
@@ -132,7 +155,7 @@ export function blockInputs(
   _inputHook: InputHook,
   buttonAction: ButtonAction,
 ): boolean | undefined {
-  const pData = getPlayerData(pyr);
+  const pData = defaultMapGetPlayer(v.run.player, pyr);
   // block buttons
   if (pData.controlsChanged) {
     if (
@@ -148,11 +171,10 @@ export function blockInputs(
 
 /** Callback: postRender. Controls to use the powers. It is executed 60 times per second. */
 export function controlIputs(): void {
-  for (let i = 0; i < game.GetNumPlayers(); i++) {
-    const pyr = Isaac.GetPlayer(i);
+  for (const pyr of getPlayers(true)) {
     const controller = pyr.ControllerIndex;
-    const pData = getPlayerData(pyr);
-    dbg.setVariable("Piquete", pData.controlsChanged, pyr);
+    const pData = defaultMapGetPlayer(v.run.player, pyr);
+    dbg.setVariable("Control", pData.controlsChanged, pyr);
 
     // Players that have any power.
     if (hasAnyPower(pyr)) {
@@ -166,46 +188,28 @@ export function controlIputs(): void {
 
       if (pData.controlsChanged) {
         for (let j = 0; j < 3; j++) {
-          if (
-            config.powerAction[j] !== undefined &&
-            pData.powers[j] !== undefined
-          ) {
+          const powerAction = config.powerAction[j];
+          const power = pData.powers[j];
+          if (powerAction !== undefined && pData.powers[j] !== undefined) {
             if (
-              isActionPressed(controller, config.powerAction[j]!) &&
-              pData.powers[j] !== undefined
+              isActionPressed(controller, powerAction) &&
+              power !== undefined
             ) {
               // Has a power on this slot.
-              usePower(pyr, pData.powers[j]!, false);
+              usePower(pyr, power, false);
             } else {
               // Is not pressing any button.
               allomancyIronSteel.deselectAllEntities(pyr);
             }
             if (
-              isActionTriggered(controller, config.powerAction[j]!) &&
-              pData.powers[i] !== undefined
+              isActionTriggered(controller, powerAction) &&
+              power !== undefined
             ) {
               // Has a power on this slot.
-              usePower(pyr, pData.powers[i]!, true);
+              usePower(pyr, power, true);
               dbg.addMessage("Triggered");
             }
           }
-        }
-      }
-
-      // Get last direction shoot and that frame.
-      if (
-        isActionTriggered(
-          controller,
-          ButtonAction.SHOOT_LEFT,
-          ButtonAction.SHOOT_RIGHT,
-          ButtonAction.SHOOT_UP,
-          ButtonAction.SHOOT_DOWN,
-        )
-        // isMoveActionTriggered(controller)
-      ) {
-        pData.lastShot.frame = Isaac.GetFrameCount();
-        if (vectorEquals(VectorZero, pyr.GetShootingInput())) {
-          pData.lastShot.direction = pyr.GetShootingInput();
         }
       }
     }

@@ -2,7 +2,7 @@ import { ModCallback } from "isaac-typescript-definitions";
 import { mod } from "../mod";
 import * as power from "../powers/power";
 
-export function init() {
+export function init(): void {
   mod.AddCallback(ModCallback.POST_PLAYER_INIT, main);
 }
 

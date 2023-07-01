@@ -5,7 +5,7 @@ export const action = {
 };
 
 export const powerAction: Record<number, ButtonAction> = {
-  [1]: ButtonAction.ITEM,
-  [2]: ButtonAction.PILL_CARD,
-  [3]: ButtonAction.BOMB,
+  [0]: ButtonAction.ITEM,
+  [1]: ButtonAction.PILL_CARD,
+  [2]: ButtonAction.BOMB,
 };

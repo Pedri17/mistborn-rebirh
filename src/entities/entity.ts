@@ -5,69 +5,16 @@ import {
   TearFlag,
   TearVariant,
 } from "isaac-typescript-definitions";
-import { getPlayerIndex } from "isaacscript-common";
-import { entityData } from "../classes/entityData";
-import { npcData } from "../classes/npcData";
-import { playerData } from "../classes/playerData";
-import { selecterData } from "../classes/selecterData";
-import { playersData } from "./player";
-
-export const npcsData: Record<PtrHash, npcData> = {};
-export const entitiesData: Record<PtrHash, entityData> = {};
-
-// GET DATA
-
-export function getData(ent: Entity): entityData {
-  const ID = GetPtrHash(ent);
-  if (entitiesData[ID] === undefined) {
-    entitiesData[ID] = new entityData();
-  }
-  return entitiesData[ID]!;
-}
-
-export function getSelecterData(ent: Entity): selecterData {
-  if (ent.ToPlayer() !== undefined) {
-    const pID = getPlayerIndex(ent.ToPlayer()!);
-    if (playersData[pID] === undefined) {
-      playersData[pID] = new playerData();
-    }
-    return playersData[pID]!;
-  } else if (ent.ToNPC() !== undefined) {
-    const npcID = GetPtrHash(ent.ToNPC()!);
-    if (npcsData[npcID] === undefined) {
-      npcsData[npcID] = new npcData();
-    }
-    return npcsData[npcID]!;
-  } else {
-    error("getSelecterData: error invalid type");
-  }
-}
-
-export function getPlayerData(ent: Entity): playerData {
-  if (ent.ToPlayer() !== undefined) {
-    const pID = getPlayerIndex(ent.ToPlayer()!);
-    if (playersData[pID] === undefined) {
-      playersData[pID] = new playerData();
-    }
-    return playersData[pID]!;
-  } else {
-    error("getPlayerData: is not a player");
-  }
-}
-
-export function getNpcData(ent: Entity): npcData {
-  if (ent.ToNPC() !== undefined) {
-    const npcID = GetPtrHash(ent.ToNPC()!);
-    if (npcsData[npcID] === undefined) {
-      npcsData[npcID] = new npcData();
-    }
-    return npcsData[npcID]!;
-  } else {
-    error("getNpcData: is not a npc");
-  }
-}
+import { getNpcData } from "../variables";
 
 // IS
+export function isEqual(
+  ent1: Entity | undefined,
+  ent2: Entity | undefined,
+): boolean {
+  if (ent1 === undefined || ent2 === undefined) return ent1 === ent2;
+  return GetPtrHash(ent1!) === GetPtrHash(ent2!);
+}
 
 export function isExisting(ent: Entity | undefined): boolean {
   return ent !== undefined && ent.Exists();
@@ -122,7 +69,7 @@ export function isMetalic(ent: Entity): boolean {
     //!! faltan los proyectiles enemigos (metal pieces)
     //|| (ent.Type == EntityType.PROJECTILE && data.isMetalPiece))
   } else if (ent.ToNPC() !== undefined) {
-    if (getNpcData(ent).coinAtached !== undefined) {
+    if (getNpcData(ent.ToNPC()!).coinAtached !== undefined) {
       return true;
     }
   }

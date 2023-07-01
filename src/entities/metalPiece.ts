@@ -2,25 +2,29 @@ import {
   EntityCollisionClass,
   EntityType,
   TearFlag,
+  TearVariant,
 } from "isaac-typescript-definitions";
-import { VectorZero, game, log, spawn, vectorEquals } from "isaacscript-common";
+import {
+  DefaultMap,
+  VectorZero,
+  defaultMapGetHash,
+  game,
+  log,
+  spawn,
+  vectorEquals,
+} from "isaacscript-common";
+import { BulletData } from "../classes/metalPiece/BulletData";
+import { NpcData } from "../classes/metalPiece/NpcData";
+import { PickupData } from "../classes/metalPiece/PickupData";
+import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
-import { TearVariantCustom } from "../customVariantType/TearVariantCustom";
+import { mod } from "../mod";
 import * as allomancyIronSteel from "../powers/allomancyIronSteel";
 import * as power from "../powers/power";
 import * as pos from "../utils/position";
 import * as vect from "../utils/vector";
-import {
-  getBulletData,
-  getPickupData,
-  getPlayerData,
-  getPowerOwnerData,
-  getTearData,
-  v,
-} from "../variables";
 import * as entity from "./entity";
-import { isExisting } from "./entity";
 
 const ref = {
   BOMB_COIN_TEAR: "gfx/effects/coin/pickup_coinBomb.anm2",
@@ -35,52 +39,66 @@ const preconf = {
   STICKED_TIME: 90,
   FRICTION_PICKUP: 0.3,
   COIN_DMG_MULT: 2,
+  velocity: {
+    MIN_TEAR_TO_HOOK: 20,
+  },
 };
+
+// SAVE DATA
+
+const v = {
+  room: {
+    bullet: new DefaultMap<PtrHash, BulletData>(() => new BulletData()),
+    pickup: new DefaultMap<PtrHash, PickupData>(() => new PickupData()),
+    npc: new DefaultMap<PtrHash, NpcData>(() => new NpcData()),
+    coinsWasted: 0,
+  },
+};
+
+export function init(): void {
+  mod.saveDataManager("metalPiece", v);
+}
 
 /** Callback: postFireTear */
 export function fireTear(tear: EntityTear): void {
-  if (
-    tear.SpawnerEntity !== undefined &&
-    tear.SpawnerEntity.ToPlayer() !== undefined
-  ) {
-    let pyr = tear.SpawnerEntity.ToPlayer()!;
-    let pData = getPlayerData(pyr);
-    let tData = getTearData(tear);
-
+  const pyr = tear.SpawnerEntity?.ToPlayer();
+  if (pyr !== undefined) {
     if (
       power.hasAnyPower(pyr) &&
-      pData.controlsChanged &&
+      power.hasControlsChanged(pyr) &&
       pyr.GetNumCoins() > 0
     ) {
       // TODO: knife synergy
       initCoinTear(tear);
-      pData.lastCoin = tear;
+      allomancyIronSteel.setLastMetalPiece(pyr, tear);
     }
   }
 }
 
-export function takeCoin(this: void, pyr: EntityPlayer) {
-  if (v.room.roomData.coinsWasted > 0) {
+export function takeCoin(this: void, pyr: EntityPlayer): void {
+  if (v.room.coinsWasted > 0) {
     pyr.AddCoins(1);
-    v.room.roomData.coinsWasted--;
+    v.room.coinsWasted--;
   }
 }
 
 /** CallbackCustom: post postTearKill and postProjectileKill */
-export function remove(bullet: EntityTear | EntityProjectile) {
-  let bData = getBulletData(bullet);
+export function remove(bullet: EntityTear | EntityProjectile): void {
+  const bData = defaultMapGetHash(v.room.bullet, bullet);
 
   // Spawn Coin
-  if (bData.isMetalPiece && bData.spawnedCoin === undefined) {
-    let anchorageWallAnim;
-    let anchorageAnim;
-    let spawnAnim;
-    let sizeAnim;
+  if (
+    bullet.Variant === BulletVariantCustom.metalPiece &&
+    bData.spawnedCoin === undefined
+  ) {
+    let anchorageWallAnim: string;
+    let anchorageAnim: string;
+    let spawnAnim: string;
+    let sizeAnim: number = getSizeAnimation(bullet);
 
     // Set pickup subtype
     // TODO: make bullet subtype
     if (bullet.SubType === MetalPieceSubtype.COIN) {
-      sizeAnim = getSizeAnimation(bullet);
       anchorageWallAnim = `AnchorageWall${sizeAnim}`;
       anchorageAnim = `Anchorage${sizeAnim}`;
       spawnAnim = `Appear${sizeAnim}`;
@@ -97,40 +115,41 @@ export function remove(bullet: EntityTear | EntityProjectile) {
     }
 
     // To anchorage
+    const tear = bullet.ToTear();
     if (
-      ((bullet.Type === EntityType.TEAR &&
-        !bullet.ToTear()?.HasTearFlags(TearFlag.BOUNCE)) ||
+      ((tear !== undefined && !tear.HasTearFlags(TearFlag.BOUNCE)) ||
         bullet.Type === EntityType.PROJECTILE) &&
-      bData.collision &&
-      // Min velocity to hook
+      bData.collided.is &&
+      // Min velocity to hook.
       vect.biggerThan(
-        bData.collisionVelocity,
-        allomancyIronSteel.preconf.velocity.MIN_TEAR_TO_HOOK,
+        bData.collided.velocity,
+        preconf.velocity.MIN_TEAR_TO_HOOK,
       )
     ) {
       // Spawn coin pickup
-      log("To anchorage");
       bData.spawnedCoin = spawn(
         EntityType.PICKUP,
         PickupVariantCustom.metalPiece,
         bullet.SubType,
         bData.anchoragePosition,
       ).ToPickup();
-      let coin = bData.spawnedCoin!;
-      let cData = getPickupData(coin);
+      const coin = bData.spawnedCoin;
+      if (coin !== undefined) {
+        const cData = defaultMapGetHash(v.room.pickup, coin);
 
-      // Set anchorage characteristics
-      coin.Friction = 100;
-      cData.isAnchorage = true;
+        // Set anchorage characteristics
+        coin.Friction = 100;
+        cData.anchorage.is = true;
 
-      // !! Comprobar si es necesario a mayores comprobar si la posición está fuera de la
-      // habitación.
+        // !! Comprobar si es necesario a mayores comprobar si la posición está fuera de la
+        // habitación.
 
-      // To wall anchorage.
-      if (pos.isWall(coin.Position)) {
-        cData.isInWall = true;
-        coin.GetSprite().Play(anchorageWallAnim, true);
-        coin.SpriteRotation = bData.collisionVelocity.GetAngleDegrees();
+        // To wall anchorage.
+        if (pos.isWall(coin.Position)) {
+          cData.anchorage.inWall = true;
+          coin.GetSprite().Play(anchorageWallAnim, true);
+          coin.SpriteRotation = bData.collided.velocity.GetAngleDegrees();
+        }
       }
     } else {
       // Just usual tear coins.
@@ -142,14 +161,15 @@ export function remove(bullet: EntityTear | EntityProjectile) {
         game.GetRoom().FindFreeTilePosition(bullet.Position, 25),
         bullet.Velocity,
       ).ToPickup();
-      log("spawn finished");
-      bData.spawnedCoin!.SpriteRotation = bullet.SpriteRotation;
-      // bData.spawnedCoin.GetSprite().Play(spawnAnim, true);
+      if (bData.spawnedCoin !== undefined) {
+        bData.spawnedCoin.SpriteRotation = bullet.SpriteRotation;
+        // bData.spawnedCoin.GetSprite().Play(spawnAnim, true);
+      }
     }
 
     // Post spawn tear
     if (bData.spawnedCoin !== undefined) {
-      let coin = bData.spawnedCoin;
+      const coin = bData.spawnedCoin;
 
       // Ensure that you cant take this tear.
       bData.isPicked = true;
@@ -162,28 +182,26 @@ export function remove(bullet: EntityTear | EntityProjectile) {
       }
 
       // If tear coin is selected then select pickup coin.
-      if (bData.isSelected) {
-        if (isExisting(bData.fromSelected)) {
-          allomancyIronSteel.selectEntity(bData.fromSelected!, coin);
-        }
-      }
+      allomancyIronSteel.passSelection(bullet, coin);
 
       // If is the last shot coin then select pickup as it.
       if (
         bullet.SpawnerEntity !== undefined &&
-        entity.isEqual(bullet, getPowerOwnerData(bullet.SpawnerEntity).lastCoin)
+        entity.isEqual(
+          bullet,
+          allomancyIronSteel.getLastMetalPiece(bullet.SpawnerEntity),
+        )
       ) {
-        getPowerOwnerData(bullet.SpawnerEntity).lastCoin = coin;
+        allomancyIronSteel.setLastMetalPiece(bullet.SpawnerEntity, coin);
       }
 
       // TODO: laser interaction
       // TODO: knife interaction
 
-      // Set tear characteristics to pickup.
-      coin.SetColor(bullet.GetColor(), 0, 1, false, false);
+      // Adjust scale
       if (
         bullet.Type === EntityType.TEAR &&
-        bData.subType === MetalPieceSubtype.COIN
+        bullet.SubType === MetalPieceSubtype.COIN
       ) {
         if (sizeAnim === 0 || sizeAnim === 1) {
           coin.SpriteScale = vect.make(bullet.ToTear()!.Scale * 2);
@@ -192,11 +210,12 @@ export function remove(bullet: EntityTear | EntityProjectile) {
         }
       }
 
-      let cData = getPickupData(coin);
-      cData.gridTouched = false;
+      // Set tear characteristics to pickup.
+      coin.SetColor(bullet.GetColor(), 0, 1, false, false);
+      const cData = defaultMapGetHash(v.room.pickup, coin);
       cData.baseDamage = bData.baseDamage;
       coin.SpawnerEntity = bullet.SpawnerEntity;
-      coin.SubType = bData.subType;
+      coin.SubType = bullet.SubType;
     }
 
     // TODO: Other ludovico interaction
@@ -205,19 +224,15 @@ export function remove(bullet: EntityTear | EntityProjectile) {
 
 /** Waste a coin to init a coin tear (is necessary that the player has coins). */
 function initCoinTear(tear: EntityTear) {
-  let tData = getTearData(tear);
+  const pyr = tear.SpawnerEntity?.ToPlayer();
 
-  if (
-    !tData.isMetalPiece &&
-    tear.SpawnerEntity !== undefined &&
-    tear.SpawnerEntity.ToPlayer() !== undefined
-  ) {
+  if (tear.Variant !== BulletVariantCustom.metalPiece && pyr !== undefined) {
     // Start tear coins
     initTearVariant(tear);
     // tData.subType = MetalPieceSubtype.COIN;
     tear.SubType = MetalPieceSubtype.COIN;
-    v.room.roomData.coinsWasted + 1;
-    tear.SpawnerEntity.ToPlayer()!.AddCoins(-1);
+    v.room.coinsWasted++;
+    pyr.AddCoins(-1);
 
     // Shield tear interaction
     if (tear.HasTearFlags(TearFlag.SHIELDED)) {
@@ -242,16 +257,16 @@ function initCoinTear(tear: EntityTear) {
 
 /** Init the MetalPiece variant on tears, change variant and set baseDamage. */
 function initTearVariant(tear: EntityTear) {
-  let tData = getTearData(tear);
+  const tData = defaultMapGetHash(v.room.bullet, tear);
 
-  if (!tData.isMetalPiece) {
-    tData.isMetalPiece = true;
+  if (tear.Variant !== BulletVariantCustom.metalPiece) {
+    tear.Variant = BulletVariantCustom.metalPiece as TearVariant;
     // TODO: Ludovico interaction
     if (
-      tear.Variant !== TearVariantCustom.metalPiece &&
+      tear.Variant !== BulletVariantCustom.metalPiece &&
       tear.GetSprite().GetFilename() !== ref.TEAR_COIN
     ) {
-      tear.ChangeVariant(TearVariantCustom.metalPiece);
+      tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
     }
 
     tData.anchoragePosition = tear.Position;
@@ -260,24 +275,22 @@ function initTearVariant(tear: EntityTear) {
 }
 
 /** Returns size animation number based on 8 sprites (0-7). */
-function getSizeAnimation(bullet: EntityTear | EntityProjectile) {
-  let scale;
-  if (bullet.Type === EntityType.TEAR) {
-    scale = bullet.ToTear()!.Scale;
+function getSizeAnimation(bullet: EntityTear | EntityProjectile): number {
+  let scale: number;
+  const tear = bullet.ToTear();
+  if (tear !== undefined) {
+    scale = tear.Scale;
   } else {
     scale = (bullet.SpriteScale.X + bullet.SpriteScale.Y) / 2;
   }
 
-  if (scale !== undefined) {
-    if (scale <= 2 / 4) {
-      return 0;
-    }
-    for (let i = 2; i < 7; i++) {
-      if (scale > i / 4 && scale <= (i + 1) / 4) {
-        return i - 1;
-      }
-    }
-    return 7;
+  if (scale <= 2 / 4) {
+    return 0;
   }
-  return undefined;
+  for (let i = 2; i < 7; i++) {
+    if (scale > i / 4 && scale <= (i + 1) / 4) {
+      return i - 1;
+    }
+  }
+  return 7;
 }

@@ -3,7 +3,7 @@ import { ModCallbackCustom } from "isaacscript-common";
 import { mod } from "../mod";
 import * as power from "../powers/power";
 
-export function init() {
+export function init(): void {
   mod.AddCallbackCustom(
     ModCallbackCustom.INPUT_ACTION_PLAYER,
     main,

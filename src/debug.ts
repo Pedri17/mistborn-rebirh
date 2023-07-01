@@ -1,7 +1,7 @@
 import { ModCallback } from "isaac-typescript-definitions";
 import {
   VectorZero,
-  arrayRemoveIndexInPlace,
+  arrayRemoveIndex,
   game,
   getEntityFromPtrHash,
 } from "isaacscript-common";
@@ -96,7 +96,7 @@ export function addMessage(text: string, entPos?: Vector | Entity) {
 
     // Limit message num
     if (debug.screen.messages.length > preconf.numScreenMess) {
-      arrayRemoveIndexInPlace(debug.screen.messages, preconf.numScreenMess + 1);
+      arrayRemoveIndex(debug.screen.messages, preconf.numScreenMess + 1);
     }
   } else {
     // To entity
@@ -126,7 +126,7 @@ function renderDebug() {
     // Screen messages
     let message: string = "";
     if (debug.screen.messages.length > 0) {
-      for (let i = 0; i < preconf.numScreenMess + 1; i++) {
+      for (let i = 1; i < preconf.numScreenMess + 1; i++) {
         if (debug.screen.messages[i] !== undefined) {
           if (i === 1 && debug.screen.lastMessageQuantity > 0) {
             message = `x${debug.screen.lastMessageQuantity}: ${debug.screen.messages[i]}`;
@@ -172,7 +172,7 @@ function renderDebug() {
               (Isaac.GetFrameCount() - entityMess.initFrame) / 3;
           } else {
             opacity = 0;
-            arrayRemoveIndexInPlace(debug.position, i);
+            debug.position = arrayRemoveIndex(debug.position, i);
           }
         }
       }

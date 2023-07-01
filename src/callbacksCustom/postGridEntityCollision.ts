@@ -3,7 +3,7 @@ import { ModCallbackCustom } from "isaacscript-common";
 import { mod } from "../mod";
 import * as allomancyIronSteel from "../powers/allomancyIronSteel";
 
-export function init() {
+export function init(): void {
   mod.AddCallbackCustom(
     ModCallbackCustom.POST_GRID_ENTITY_COLLISION,
     main,

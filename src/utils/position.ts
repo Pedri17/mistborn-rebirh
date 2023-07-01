@@ -22,3 +22,19 @@ export function isNoneCollision(pos: Vector) {
 export function isGrid(pos: Vector) {
   return game.GetRoom().GetGridCollisionAtPos(pos) !== undefined;
 }
+
+export function roomLimitPos(pos: Vector) {
+  return game
+    .GetRoom()
+    .GetBottomRightPos()
+    .sub(game.GetRoom().GetTopLeftPos())
+    .sub(Vector(20, 20));
+}
+
+export function roomPosPerOne(pos: Vector) {
+  return game
+    .GetRoom()
+    .GetClampedPosition(pos, 10)
+    .sub(game.GetRoom().GetTopLeftPos())
+    .sub(Vector(10, 10));
+}
