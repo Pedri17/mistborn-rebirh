@@ -1,3 +1,4 @@
+/* eslint-disable max-classes-per-file */
 import { ModCallback } from "isaac-typescript-definitions";
 import {
   VectorZero,
@@ -5,71 +6,80 @@ import {
   game,
   getEntityFromPtrHash,
 } from "isaacscript-common";
-import * as entity from "./entities/entity";
 import { mod } from "./mod";
 import * as util from "./utils/util";
 
 class ScreenMessageClass {
   messages: string[] = [];
-  opacity: number = 1;
+  opacity = 1;
   lastMessageQuantity = 0;
 }
 
 class EntityMessageClass {
-  displacement: number = 0;
-  message: string = "";
+  displacement = 0;
+  message = "";
   position: Vector = VectorZero;
-  initFrame: number = 0;
+  initFrame = 0;
 }
 
-class debugClass {
-  active: boolean = true;
+class DebugClass {
+  active = true;
   screen: ScreenMessageClass = new ScreenMessageClass();
   position: EntityMessageClass[] = [];
-  entities: Map<PtrHash, Map<string, any>> = new Map();
-  variables: Map<string, any> = new Map();
+  entities: Map<PtrHash, Map<string, unknown>> = new Map<
+    PtrHash,
+    Map<string, unknown>
+  >();
+
+  variables: Map<string, unknown> = new Map<string, unknown>();
 }
 
-let debug = new debugClass();
+const debug = new DebugClass();
 
 const preconf = {
   numScreenMess: 3,
   numEntityMess: 3,
 };
 
-export function init() {
+export function init(): void {
   mod.AddCallback(ModCallback.POST_RENDER, renderDebug);
 }
 
 /**
- * Set a debug variable on a entity or on the top left of the screen
+ * Set a debug variable on a entity or on the top left of the screen.
  *
  * @param varName This need to be unique to every entity or the screen.
  * @param value Variable that will be displayed.
  * @param ent Optional. Entity where variable will be displayed.
  */
-export function setVariable(varName: string, value: any, ent?: Entity) {
+export function setVariable(
+  varName: string,
+  value: unknown,
+  ent?: Entity,
+): void {
   if (ent !== undefined) {
-    //To entity
+    // To entity
     const ID = GetPtrHash(ent);
 
-    if (entity.isExisting(ent)) {
-      // Ensure that is alive
-      let variables: Map<string, any> = new Map();
+    if (ent.Exists()) {
+      // Ensure that is alive.
+      let variables: Map<string, unknown> = new Map<string, unknown>();
       variables.set(varName, value);
       if (debug.entities.get(ID) === undefined) {
-        // New entity
+        // New entity.
         debug.entities.set(ID, variables);
       } else {
-        // Saved entity
-        variables = debug.entities.get(ID)!;
-        variables.set(varName, value);
+        // Saved entity.
+        const thisData = debug.entities.get(ID);
+        if (thisData !== undefined) {
+          thisData.set(varName, value);
+        }
       }
     } else if (debug.entities.get(ID) !== undefined) {
       debug.entities.delete(ID);
     }
   } else {
-    // To screen
+    // To screen.
     debug.variables.set(varName, value);
   }
 }
@@ -77,16 +87,16 @@ export function setVariable(varName: string, value: any, ent?: Entity) {
 /**
  * Adds a message that will be rendered at the bottom right of the screen or on a entity position.
  *
- * @param text message that will be displayed.
- * @param entPos Optional. Position where message will be displayed, use entity to take its position.
- *
+ * @param text Message that will be displayed.
+ * @param entPos Optional. Position where message will be displayed, use entity to take its
+ *               position.
  */
-export function addMessage(text: string, entPos?: Vector | Entity) {
+export function addMessage(text: string, entPos?: Vector | Entity): void {
   // To screen
   if (entPos === undefined) {
-    // Add lastMessageQuantity if it is a repeated message
+    // Add lastMessageQuantity if it is a repeated message.
     if (debug.screen.messages[1] === text) {
-      debug.screen.lastMessageQuantity += 1;
+      debug.screen.lastMessageQuantity++;
     } else {
       debug.screen.lastMessageQuantity = 0;
     }
@@ -100,13 +110,13 @@ export function addMessage(text: string, entPos?: Vector | Entity) {
     }
   } else {
     // To entity
-    let newEntityMess = new EntityMessageClass();
+    const newEntityMess = new EntityMessageClass();
 
     newEntityMess.message = text;
     newEntityMess.initFrame = Isaac.GetFrameCount();
     newEntityMess.displacement = 0;
     if (util.isType<Entity>(entPos)) {
-      let pos = entPos.Position;
+      const pos = entPos.Position;
       entPos = pos;
     }
     newEntityMess.position = game.GetRoom().WorldToScreenPosition(entPos);
@@ -115,16 +125,14 @@ export function addMessage(text: string, entPos?: Vector | Entity) {
   }
 }
 
-/**
- * Used on PostRenderCallback, render debug messages and variables.
- */
+/** Used on PostRenderCallback, render debug messages and variables. */
 function renderDebug() {
   if (debug.active) {
-    let f = Font();
+    const f = Font();
     f.Load("font/pftempestasevencondensed.fnt");
 
     // Screen messages
-    let message: string = "";
+    let message = "";
     if (debug.screen.messages.length > 0) {
       for (let i = 1; i < preconf.numScreenMess + 1; i++) {
         if (debug.screen.messages[i] !== undefined) {
@@ -151,11 +159,11 @@ function renderDebug() {
     }
 
     // Position messages
-    let numEntities = debug.position.length;
+    const numEntities = debug.position.length;
     if (numEntities > 0) {
       for (let i = 0; i < numEntities + 1; i++) {
         let opacity = 1;
-        let entityMess = debug.position[i];
+        const entityMess = debug.position[i];
 
         if (entityMess !== undefined) {
           if (entityMess.displacement < 100) {
@@ -178,16 +186,18 @@ function renderDebug() {
       }
     }
 
-    let r: number = 0;
-    let g: number = 0;
-    let b: number = 0;
+    let r = 0;
+    let g = 0;
+    let b = 0;
 
     // Screen variables
     if (debug.variables.size > 0) {
-      let messVar: string = "";
+      let messVar = "";
       let i = 1;
-      for (let [name, value] of debug.variables) {
-        if (name !== "") messVar = name + ": ";
+      for (const [name, value] of debug.variables) {
+        if (name !== "") {
+          messVar = `${name}: `;
+        }
 
         if (util.isType<boolean>(value)) {
           if (value) {
@@ -208,20 +218,20 @@ function renderDebug() {
 
     // Entity variables
     if (debug.entities.size > 0) {
-      for (let [ptr, variables] of debug.entities) {
-        // Remove entity if it is not alive
-        if (!entity.isExisting(getEntityFromPtrHash(ptr))) {
+      for (const [ptr, variables] of debug.entities) {
+        // Remove entity if it is not alive.
+        const thisEnt = getEntityFromPtrHash(ptr);
+        if (thisEnt === undefined || !thisEnt.Exists()) {
           debug.entities.delete(ptr);
         } else {
-          const ent = getEntityFromPtrHash(ptr)!;
-          const pos = game.GetRoom().WorldToScreenPosition(ent.Position);
+          const pos = game.GetRoom().WorldToScreenPosition(thisEnt.Position);
 
           let i = 1;
-          for (let [name, value] of variables) {
+          for (const [name, value] of variables) {
             let messVar = "";
 
             if (name !== "") {
-              messVar = name + ": ";
+              messVar = `${name}: `;
             }
 
             if (util.isType<boolean>(value)) {

@@ -19,6 +19,7 @@ import { PickupData } from "../classes/metalPiece/PickupData";
 import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
+import * as dbg from "../debug";
 import { mod } from "../mod";
 import * as allomancyIronSteel from "../powers/allomancyIronSteel";
 import * as power from "../powers/power";
@@ -56,6 +57,7 @@ const v = {
 };
 
 export function init(): void {
+  mod.saveDataManagerRegisterClass(BulletData, PickupData, NpcData);
   mod.saveDataManager("metalPiece", v);
 }
 
@@ -69,6 +71,7 @@ export function fireTear(tear: EntityTear): void {
       pyr.GetNumCoins() > 0
     ) {
       // TODO: knife synergy
+      dbg.addMessage("initCoin", tear);
       initCoinTear(tear);
       allomancyIronSteel.setLastMetalPiece(pyr, tear);
     }
@@ -91,10 +94,12 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
     bullet.Variant === BulletVariantCustom.metalPiece &&
     bData.spawnedCoin === undefined
   ) {
+    const tear = bullet.ToTear();
+
     let anchorageWallAnim: string;
     let anchorageAnim: string;
     let spawnAnim: string;
-    let sizeAnim: number = getSizeAnimation(bullet);
+    const sizeAnim: number = getSizeAnimation(bullet);
 
     // Set pickup subtype
     // TODO: make bullet subtype
@@ -115,7 +120,6 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
     }
 
     // To anchorage
-    const tear = bullet.ToTear();
     if (
       ((tear !== undefined && !tear.HasTearFlags(TearFlag.BOUNCE)) ||
         bullet.Type === EntityType.PROJECTILE) &&
@@ -141,8 +145,7 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
         coin.Friction = 100;
         cData.anchorage.is = true;
 
-        // !! Comprobar si es necesario a mayores comprobar si la posición está fuera de la
-        // habitación.
+        // !! Comprobar si es necesario a mayores comprobar si la posición está fuera.
 
         // To wall anchorage.
         if (pos.isWall(coin.Position)) {
@@ -199,14 +202,11 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
       // TODO: knife interaction
 
       // Adjust scale
-      if (
-        bullet.Type === EntityType.TEAR &&
-        bullet.SubType === MetalPieceSubtype.COIN
-      ) {
+      if (tear !== undefined && bullet.SubType === MetalPieceSubtype.COIN) {
         if (sizeAnim === 0 || sizeAnim === 1) {
-          coin.SpriteScale = vect.make(bullet.ToTear()!.Scale * 2);
+          coin.SpriteScale = vect.make(tear.Scale * 2);
         } else {
-          coin.SpriteScale = vect.make(bullet.ToTear()!.Scale);
+          coin.SpriteScale = vect.make(tear.Scale);
         }
       }
 
@@ -240,7 +240,7 @@ function initCoinTear(tear: EntityTear) {
       tear.GetSprite().LoadGraphics();
     }
 
-    // Change rotation to tear velocity
+    // Change rotation to tear velocity.
     if (vectorEquals(VectorZero, tear.Velocity)) {
       tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
     }

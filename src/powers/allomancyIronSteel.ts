@@ -70,6 +70,7 @@ const v = {
 };
 
 export function init(): void {
+  mod.saveDataManagerRegisterClass(SelecterData, EntityData);
   mod.saveDataManager("powers", v);
 }
 
@@ -84,11 +85,11 @@ export function getLastMetalPiece(ent: Entity): Entity | undefined {
 /**
  * Use iron or steel allomancy power, it can be used by a player or a npc.
  *
- * @param ent EntityNPC | EntityPlayer. Entity that use the power.
- * @param power Iron or Steel power to push or pull.
- * @param dir Optional. Direction for non player entities.
+ * @param _ent EntityNPC | EntityPlayer. Entity that use the power.
+ * @param _power Iron or Steel power to push or pull.
+ * @param _dir Optional. Direction for non player entities.
  */
-export function use(ent: Entity, power: Power, dir?: Vector): void {}
+export function use(_ent: Entity, _power: Power, _dir?: Vector): void {}
 
 export function throwTracer(ent: Entity, dir?: Vector): void {
   const eData = defaultMapGetHash(v.room.entity, ent);
@@ -150,7 +151,7 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
             // Select any entity, if tear or enemy focus on it.
             if (sTear !== undefined) {
               // If find a enemy focus it deselecting other entities.
-              if ((sTear.StickTarget as Entity | undefined) !== undefined) {
+              if (sTear.StickTarget !== undefined) {
                 focusEnemy(sTear, ent);
               } else {
                 focusTears(ent);
@@ -160,8 +161,8 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
             someSelect = true;
           } else if (
             sData.focusSelection === FocusSelection.JUST_ENEMIES &&
-            sEntity.Type === EntityType.TEAR &&
-            sEntity.ToTear()!.StickTarget !== undefined
+            sTear !== undefined &&
+            sTear.StickTarget !== undefined
           ) {
             // Just select enemies
             selectEntity(ent, sEntity);
@@ -171,8 +172,8 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
             sEntity.Type === EntityType.TEAR
           ) {
             // Select tears (can focus enemies).
-            if (sEntity.ToTear()!.StickTarget !== undefined) {
-              focusEnemy(sEntity.ToTear()!, ent);
+            if (sTear !== undefined && sTear.StickTarget !== undefined) {
+              focusEnemy(sTear, ent);
             }
             selectEntity(ent, sEntity);
             someSelect = true;
@@ -188,8 +189,8 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
   if (!someSelect) {
     // !! No está la gestión de la interacción con ludovico y mom's knife If not selected any
     // select.
-    if (entity.isExisting(sData.lastMetalPiece)) {
-      selectEntity(ent, sData.lastMetalPiece!);
+    if (sData.lastMetalPiece !== undefined && sData.lastMetalPiece.Exists()) {
+      selectEntity(ent, sData.lastMetalPiece);
     }
   }
 }
@@ -278,7 +279,9 @@ export function isSelected(ent: Entity): boolean {
 
 function focusEnemy(sEnt: EntityTear, fromEnt: Entity) {
   const data = defaultMapGetHash(v.room.selecter, fromEnt);
-  defaultMapGetHash(v.room.entity, sEnt.StickTarget).gridTouched = false;
+  if (sEnt.StickTarget !== undefined) {
+    defaultMapGetHash(v.room.entity, sEnt.StickTarget).gridTouched = false;
+  }
 
   data.focusSelection = FocusSelection.JUST_ENEMIES;
   // Deselect every non enemy entity.
@@ -314,15 +317,16 @@ function focusTears(fromEnt: Entity) {
 
 /** POST_GRID_ENTITY_COLLISION (player). */
 export function touchGrid(_grEntity: GridEntity, ent: Entity): void {
-  const pyr = ent.ToPlayer()!;
-  let eData = defaultMapGetHash(v.room.entity, pyr);
+  const pyr = ent.ToPlayer();
+  if (pyr !== undefined) {
+    const eData = defaultMapGetHash(v.room.entity, pyr);
+    eData.gridTouched = true;
+  }
 
   // !! Falta ver cómo se pone a false el grid touched.
-  eData.gridTouched = true;
 }
 
 export function checkLastShotDirection(): void {
-  let i = 0;
   for (const pyr of getPlayers(true)) {
     const controller = pyr.ControllerIndex;
     const pData = defaultMapGetHash(v.room.selecter, pyr);
@@ -343,5 +347,4 @@ export function checkLastShotDirection(): void {
       }
     }
   }
-  i++;
 }

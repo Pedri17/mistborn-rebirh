@@ -37,6 +37,7 @@ const v = {
 };
 
 export function init(): void {
+  mod.saveDataManagerRegisterClass(PlayerData, PowerOwnerData);
   mod.saveDataManager("powers", v);
 }
 
@@ -222,6 +223,11 @@ export function getCollectiblePower(
   colType: CollectibleType,
 ): void {
   if (CollectibleTypeCustomToPower.has(colType)) {
-    addPower(pyr, CollectibleTypeCustomToPower.get(colType)!);
+    const power = CollectibleTypeCustomToPower.get(colType);
+    if (power !== undefined) {
+      addPower(pyr, power);
+    } else {
+      error("Trying to add a not implemented power.");
+    }
   }
 }

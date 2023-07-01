@@ -1,12 +1,13 @@
+import { TearVariant } from "isaac-typescript-definitions";
 import { ModCallbackCustom } from "isaacscript-common";
-import { TearVariantCustom } from "../customVariantType/BulletVariantCustom";
+import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import * as metalPiece from "../entities/metalPiece";
 import { mod } from "../mod";
 
-export function init() {
+export function init(): void {
   mod.AddCallbackCustom(
     ModCallbackCustom.POST_TEAR_KILL,
     metalPiece.remove,
-    TearVariantCustom.metalPiece,
+    BulletVariantCustom.metalPiece as TearVariant,
   );
 }
