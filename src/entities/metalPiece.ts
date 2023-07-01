@@ -19,7 +19,6 @@ import { PickupData } from "../classes/metalPiece/PickupData";
 import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
-import * as dbg from "../debug";
 import { mod } from "../mod";
 import * as allomancyIronSteel from "../powers/allomancyIronSteel";
 import * as power from "../powers/power";
@@ -71,10 +70,72 @@ export function fireTear(tear: EntityTear): void {
       pyr.GetNumCoins() > 0
     ) {
       // TODO: knife synergy
-      dbg.addMessage("initCoin", tear);
       initCoinTear(tear);
       allomancyIronSteel.setLastMetalPiece(pyr, tear);
     }
+  }
+}
+
+/** Waste a coin to init a coin tear (is necessary that the player has coins). */
+function initCoinTear(tear: EntityTear) {
+  const pyr = tear.SpawnerEntity?.ToPlayer();
+
+  if (tear.Variant !== BulletVariantCustom.metalPiece && pyr !== undefined) {
+    // Start tear coins
+    initTearVariant(tear);
+
+    tear.SubType = MetalPieceSubtype.COIN;
+    v.room.coinsWasted++;
+    pyr.AddCoins(-1);
+
+    // Shield tear interaction
+    if (tear.HasTearFlags(TearFlag.SHIELDED)) {
+      tear.GetSprite().ReplaceSpritesheet(0, ref.SHIELD_COIN_TEAR);
+      tear.GetSprite().LoadGraphics();
+    }
+
+    // Change rotation to tear velocity.
+    if (vectorEquals(VectorZero, tear.Velocity)) {
+      tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
+    }
+
+    const sizeAnim = getSizeAnimation(tear);
+    log(`animacion[Appear${sizeAnim}]`);
+
+    tear.GetSprite().Play(`Appear${sizeAnim}`, false);
+    // Adjust smaller sizes
+    if (sizeAnim === 0 || sizeAnim === 1) {
+      tear.SpriteScale = tear.SpriteScale.mul(2);
+    }
+  }
+}
+
+/** Init the MetalPiece variant on tears, change variant and set baseDamage. */
+function initTearVariant(tear: EntityTear) {
+  const tData = defaultMapGetHash(v.room.bullet, tear);
+
+  if (tear.Variant !== BulletVariantCustom.metalPiece) {
+    tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
+    // TODO: Ludovico interaction
+    if (
+      tear.Variant !== BulletVariantCustom.metalPiece &&
+      tear.GetSprite().GetFilename() !== ref.TEAR_COIN
+    ) {
+      tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
+    }
+
+    tData.anchoragePosition = tear.Position;
+    tData.baseDamage = tear.CollisionDamage * preconf.COIN_DMG_MULT;
+  }
+}
+
+export function metalPieceBulletUpdate(bullet: Entity): void {
+  const anim = bullet.GetSprite().GetAnimation();
+  if (
+    anim.substring(0, anim.length - 1) === "Appear" &&
+    bullet.GetSprite().IsFinished(`Appear${anim.substring(anim.length)}`)
+  ) {
+    bullet.GetSprite().Play(`Idle${anim.substring(anim.length)}`, false);
   }
 }
 
@@ -219,58 +280,6 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
     }
 
     // TODO: Other ludovico interaction
-  }
-}
-
-/** Waste a coin to init a coin tear (is necessary that the player has coins). */
-function initCoinTear(tear: EntityTear) {
-  const pyr = tear.SpawnerEntity?.ToPlayer();
-
-  if (tear.Variant !== BulletVariantCustom.metalPiece && pyr !== undefined) {
-    // Start tear coins
-    initTearVariant(tear);
-    // tData.subType = MetalPieceSubtype.COIN;
-    tear.SubType = MetalPieceSubtype.COIN;
-    v.room.coinsWasted++;
-    pyr.AddCoins(-1);
-
-    // Shield tear interaction
-    if (tear.HasTearFlags(TearFlag.SHIELDED)) {
-      tear.GetSprite().ReplaceSpritesheet(0, ref.SHIELD_COIN_TEAR);
-      tear.GetSprite().LoadGraphics();
-    }
-
-    // Change rotation to tear velocity.
-    if (vectorEquals(VectorZero, tear.Velocity)) {
-      tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
-    }
-
-    const sizeAnim = getSizeAnimation(tear);
-
-    tear.GetSprite().Play(`Appear${sizeAnim}`, true);
-    // Adjust smaller sizes
-    if (sizeAnim === 0 || sizeAnim === 1) {
-      tear.SpriteScale = tear.SpriteScale.mul(2);
-    }
-  }
-}
-
-/** Init the MetalPiece variant on tears, change variant and set baseDamage. */
-function initTearVariant(tear: EntityTear) {
-  const tData = defaultMapGetHash(v.room.bullet, tear);
-
-  if (tear.Variant !== BulletVariantCustom.metalPiece) {
-    tear.Variant = BulletVariantCustom.metalPiece as TearVariant;
-    // TODO: Ludovico interaction
-    if (
-      tear.Variant !== BulletVariantCustom.metalPiece &&
-      tear.GetSprite().GetFilename() !== ref.TEAR_COIN
-    ) {
-      tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
-    }
-
-    tData.anchoragePosition = tear.Position;
-    tData.baseDamage = tear.CollisionDamage * preconf.COIN_DMG_MULT;
   }
 }
 
