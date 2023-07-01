@@ -1,23 +1,32 @@
-import { EntityType } from "isaac-typescript-definitions";
+import { ButtonAction, EntityType } from "isaac-typescript-definitions";
 import {
+  DefaultMap,
   VectorOne,
   VectorZero,
   arrayRemoveAll,
+  defaultMapGetHash,
   doesVectorHaveLength,
   emptyArray,
+  game,
   getEntityFromPtrHash,
+  getPlayers,
+  isActionTriggered,
   log,
   vectorEquals,
 } from "isaacscript-common";
+import { EntityData } from "../classes/allomancyIronSteel/EntityData";
+import { SelecterData } from "../classes/allomancyIronSteel/SelecterData";
 import * as Debug from "../debug";
 import * as entity from "../entities/entity";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
+import { mod } from "../mod";
 import * as math from "../utils/math";
 import * as pos from "../utils/position";
 import * as util from "../utils/util";
+// import { addPower } from "./power";
 
-const preconf = {
+export const preconf = {
   FAST_CRASH_DMG_MULT: 1,
   PUSHED_COIN_DMG_MULT: 1.5,
   velocity: {
@@ -34,7 +43,6 @@ const preconf = {
       KNIFE_PICKUP: 12,
     },
     AIMING_PUSH_ENTITY_VEL: 25,
-    MIN_TEAR_TO_HOOK: 20,
     MIN_TO_PICKUP_DAMAGE: 15,
     MIN_DOUBLE_HIT: 10,
     MIN_TO_GRID_SMASH: 10,
@@ -52,34 +60,60 @@ const preconf = {
   },
 };
 
-export function use(ent: Entity, power: Power, dir?: Vector) {
-  //log("using power");
+// SAVE DATA
+
+const v = {
+  room: {
+    selecter: new DefaultMap<PtrHash, SelecterData>(() => new SelecterData()),
+    entity: new DefaultMap<PtrHash, EntityData>(() => new EntityData()),
+  },
+};
+
+export function init(): void {
+  mod.saveDataManager("powers", v);
 }
 
-export function throwTracer(ent: Entity, dir?: Vector) {
-  let data = entity.getSelecterData(ent);
+export function setLastMetalPiece(ent: Entity, metalPiece: Entity): void {
+  defaultMapGetHash(v.room.selecter, ent).lastMetalPiece = metalPiece;
+}
+
+export function getLastMetalPiece(ent: Entity): Entity | undefined {
+  return defaultMapGetHash(v.room.selecter, ent).lastMetalPiece;
+}
+
+/**
+ * Use iron or steel allomancy power, it can be used by a player or a npc.
+ *
+ * @param ent EntityNPC | EntityPlayer. Entity that use the power.
+ * @param power Iron or Steel power to push or pull.
+ * @param dir Optional. Direction for non player entities.
+ */
+export function use(ent: Entity, power: Power, dir?: Vector): void {}
+
+export function throwTracer(ent: Entity, dir?: Vector): void {
+  const eData = defaultMapGetHash(v.room.entity, ent);
+  const sData = defaultMapGetHash(v.room.selecter, ent);
+
+  const pyr = ent.ToPlayer();
 
   deselectAllEntities(ent);
-  data.gridTouched = false;
+  eData.gridTouched = false;
 
   // Select direction
   let direction: Vector;
-  if (ent.ToPlayer() !== undefined) {
-    const pyr = ent.ToPlayer()!;
-    let pData = entity.getPlayerData(ent);
-    //!! comprobar si me pasé con el threeshold para usar el joystick
+  if (pyr !== undefined) {
+    // !! Comprobar si me pasé con el threeshold para usar el joystick.
     if (doesVectorHaveLength(pyr.GetShootingJoystick(), 0.3)) {
       direction = pyr.GetShootingJoystick();
-      log(`pilla el joystick ${pyr.GetShootingJoystick()}`);
     } else if (
-      Isaac.GetFrameCount() - pData.lastShot.frame <=
+      Isaac.GetFrameCount() - sData.lastShot.frame <=
       preconf.tracer.MAX_TIME_TO_USE_LAST_SHOT_DIRECTION
     ) {
-      direction = pData.lastShot.direction;
+      direction = sData.lastShot.direction;
     } else if (!vectorEquals(pyr.GetMovementInput(), VectorZero)) {
       direction = pyr.GetMovementInput();
-    } else if (!vectorEquals(pData.lastShot.direction, VectorZero)) {
-      direction = pData.lastShot.direction;
+    } else if (!vectorEquals(sData.lastShot.direction, VectorZero)) {
+      direction = sData.lastShot.direction;
     } else {
       direction = VectorOne;
     }
@@ -95,7 +129,7 @@ export function throwTracer(ent: Entity, dir?: Vector) {
 
   while (!pos.isWall(pointer)) {
     // Select entities
-    let foundEntities = Isaac.FindInRadius(
+    const foundEntities = Isaac.FindInRadius(
       pointer,
       math.upperBound(
         5 + ent.Position.Distance(pointer) / 4,
@@ -105,26 +139,27 @@ export function throwTracer(ent: Entity, dir?: Vector) {
     );
     if (foundEntities.length > 0) {
       for (const sEntity of foundEntities) {
+        const sTear = sEntity.ToTear();
+
         if (
           entity.isMetalic(sEntity) &&
-          !data.selectedEntities.includes(GetPtrHash(sEntity))
+          !sData.selectedEntities.includes(GetPtrHash(sEntity))
         ) {
-          log(`Se encontro la entidad metalica ${sEntity}`);
           // Ensure focus selection
-          if (data.focusSelection === FocusSelection.BASE) {
-            // Select any entity, if tear or enemy focus on it
-            if (sEntity.Type === EntityType.TEAR) {
-              // If find a enemy focus it deselecting other entities
-              if (sEntity.ToTear()!.StickTarget !== undefined) {
-                focusEnemy(sEntity.ToTear()!, ent);
+          if (sData.focusSelection === FocusSelection.BASE) {
+            // Select any entity, if tear or enemy focus on it.
+            if (sTear !== undefined) {
+              // If find a enemy focus it deselecting other entities.
+              if ((sTear.StickTarget as Entity | undefined) !== undefined) {
+                focusEnemy(sTear, ent);
               } else {
-                focusTear(sEntity.ToTear()!, ent);
+                focusTears(ent);
               }
             }
             selectEntity(ent, sEntity);
             someSelect = true;
           } else if (
-            data.focusSelection == FocusSelection.JUST_ENEMIES &&
+            sData.focusSelection === FocusSelection.JUST_ENEMIES &&
             sEntity.Type === EntityType.TEAR &&
             sEntity.ToTear()!.StickTarget !== undefined
           ) {
@@ -132,10 +167,10 @@ export function throwTracer(ent: Entity, dir?: Vector) {
             selectEntity(ent, sEntity);
             someSelect = true;
           } else if (
-            data.focusSelection === FocusSelection.TEAR_OR_ENEMIES &&
+            sData.focusSelection === FocusSelection.TEAR_OR_ENEMIES &&
             sEntity.Type === EntityType.TEAR
           ) {
-            // Select tears (can focus enemies)
+            // Select tears (can focus enemies).
             if (sEntity.ToTear()!.StickTarget !== undefined) {
               focusEnemy(sEntity.ToTear()!, ent);
             }
@@ -145,29 +180,29 @@ export function throwTracer(ent: Entity, dir?: Vector) {
         }
       }
     }
-    //Move pointer
+    // Move pointer
     pointer = pointer.add(direction.mul(5));
   }
 
-  // Not selected any entity
+  // Not selected any entity.
   if (!someSelect) {
-    // !! No está la gestión de la interacción con ludovico y mom's knife
-    // If not selected any select this entity
-    if (entity.isExisting(data.lastCoin)) {
-      selectEntity(ent, data.lastCoin!);
+    // !! No está la gestión de la interacción con ludovico y mom's knife If not selected any
+    // select.
+    if (entity.isExisting(sData.lastMetalPiece)) {
+      selectEntity(ent, sData.lastMetalPiece!);
     }
   }
 }
 
 // SELECTION
 
-function deselectAllEntities(fromEnt: Entity) {
-  let data = entity.getSelecterData(fromEnt);
+export function deselectAllEntities(fromEnt: Entity): void {
+  const data = defaultMapGetHash(v.room.selecter, fromEnt);
   if (data.selectedEntities.length > 0) {
     for (const sEntityPtr of data.selectedEntities) {
-      let sEntity = getEntityFromPtrHash(sEntityPtr);
+      const sEntity = getEntityFromPtrHash(sEntityPtr);
       if (sEntity !== undefined) {
-        entity.getData(sEntity).isSelected = false;
+        defaultMapGetHash(v.room.entity, sEntity).selected.is = false;
       }
     }
 
@@ -176,64 +211,81 @@ function deselectAllEntities(fromEnt: Entity) {
   }
 }
 
-function deselectEntity(sEnt: Entity | PtrHash) {
-  let baseEnt: Entity | undefined = undefined;
-  let basePtr: PtrHash | undefined = undefined;
+export function deselectEntity(sEnt: Entity | PtrHash): void {
+  let baseEnt: Entity | undefined;
+  let basePtr: PtrHash | undefined;
 
   if (util.isType<Entity>(sEnt)) {
     baseEnt = sEnt;
     basePtr = GetPtrHash(sEnt);
   } else if (getEntityFromPtrHash(sEnt) !== undefined) {
-    baseEnt = getEntityFromPtrHash(sEnt)!;
+    baseEnt = getEntityFromPtrHash(sEnt);
     basePtr = sEnt;
   } else {
     log("deslectEntity: entity to deselect not exists");
   }
 
   if (baseEnt !== undefined && basePtr !== undefined) {
-    let data = entity.getData(baseEnt);
-    if (
-      data.fromSelected !== undefined &&
-      getEntityFromPtrHash(data.fromSelected) !== undefined
-    ) {
-      const selEntities = entity.getSelecterData(
-        getEntityFromPtrHash(data.fromSelected)!,
+    const data = defaultMapGetHash(v.room.entity, baseEnt);
+    if (data.selected.from !== undefined) {
+      const selEntities = defaultMapGetHash(
+        v.room.selecter,
+        data.selected.from,
       ).selectedEntities;
 
       if (selEntities.includes(basePtr)) {
-        data.isSelected = false;
+        data.selected.is = false;
         arrayRemoveAll(selEntities, basePtr);
       }
     }
   }
 }
 
-function selectEntity(fromEnt: Entity, ent: Entity) {
-  let data = entity.getData(ent);
-  let fData = entity.getSelecterData(fromEnt);
-  data.fromSelected = GetPtrHash(fromEnt);
-  data.isSelected = true;
-  data.gridTouched = false;
+export function selectEntity(fromEnt: Entity, ent: Entity): void {
+  const fData = defaultMapGetHash(v.room.selecter, fromEnt);
+  const eData = defaultMapGetHash(v.room.entity, ent);
+  eData.selected.from = fromEnt;
+  eData.selected.is = true;
+  eData.gridTouched = false;
   fData.selectedEntities.push(GetPtrHash(ent));
-  Debug.addMessage("Seleccionado", ent);
+  Debug.setVariable("Seleccionado", true, ent);
+}
+
+/**
+ * Pass a selected state from a entity to another one.
+ *
+ * @param selectedEntity Entity that need to be selected.
+ * @param toSelectEntity Entity that will be selected.
+ * @returns If it was possible to pass the selected state.
+ */
+export function passSelection(
+  selectedEntity: Entity,
+  toSelectEntity: Entity,
+): boolean {
+  const sData = defaultMapGetHash(v.room.entity, selectedEntity);
+  if (sData.selected.is && sData.selected.from !== undefined) {
+    selectEntity(sData.selected.from, toSelectEntity);
+    return true;
+  }
+  return false;
+}
+
+export function isSelected(ent: Entity): boolean {
+  return defaultMapGetHash(v.room.entity, ent).selected.is;
 }
 
 // FOCUS
 
 function focusEnemy(sEnt: EntityTear, fromEnt: Entity) {
-  let data = entity.getSelecterData(fromEnt);
-  entity.getData(sEnt.StickTarget).gridTouched = false;
+  const data = defaultMapGetHash(v.room.selecter, fromEnt);
+  defaultMapGetHash(v.room.entity, sEnt.StickTarget).gridTouched = false;
+
   data.focusSelection = FocusSelection.JUST_ENEMIES;
-  // Deselect every non enemy entity
+  // Deselect every non enemy entity.
   for (const selHash of data.selectedEntities) {
     const selEntity = getEntityFromPtrHash(selHash);
     if (selEntity !== undefined) {
-      if (
-        !(
-          selEntity.ToTear() !== undefined &&
-          selEntity.ToTear()!.StickTarget !== undefined
-        )
-      ) {
+      if (!(selEntity.ToTear()?.StickTarget !== undefined)) {
         deselectEntity(selEntity);
       }
     } else {
@@ -242,10 +294,10 @@ function focusEnemy(sEnt: EntityTear, fromEnt: Entity) {
   }
 }
 
-function focusTear(sEnt: EntityTear, fromEnt: Entity) {
-  let data = entity.getSelecterData(fromEnt);
+function focusTears(fromEnt: Entity) {
+  const data = defaultMapGetHash(v.room.selecter, fromEnt);
   data.focusSelection = FocusSelection.TEAR_OR_ENEMIES;
-  // Deselect every non tear entity
+  // Deselect every non tear entity.
   for (const selHash of data.selectedEntities) {
     const selEntity = getEntityFromPtrHash(selHash);
     if (selEntity !== undefined) {
@@ -260,12 +312,36 @@ function focusTear(sEnt: EntityTear, fromEnt: Entity) {
 
 // CALLBACKS
 
-//POST_GRID_ENTITY_COLLISION (player)
-// !! ver si era también para npcs
-export function touchGrid(grEntity: GridEntity, ent: Entity) {
-  const pyr = ent.ToPlayer();
-  let pData = entity.getPlayerData(ent);
+/** POST_GRID_ENTITY_COLLISION (player). */
+export function touchGrid(_grEntity: GridEntity, ent: Entity): void {
+  const pyr = ent.ToPlayer()!;
+  let eData = defaultMapGetHash(v.room.entity, pyr);
 
-  //!! falta ver cómo se pone a false el grid touched
-  pData.gridTouched = true;
+  // !! Falta ver cómo se pone a false el grid touched.
+  eData.gridTouched = true;
+}
+
+export function checkLastShotDirection(): void {
+  let i = 0;
+  for (const pyr of getPlayers(true)) {
+    const controller = pyr.ControllerIndex;
+    const pData = defaultMapGetHash(v.room.selecter, pyr);
+
+    // Players that have any power. Get last direction shoot and that frame.
+    if (
+      isActionTriggered(
+        controller,
+        ButtonAction.SHOOT_LEFT,
+        ButtonAction.SHOOT_RIGHT,
+        ButtonAction.SHOOT_UP,
+        ButtonAction.SHOOT_DOWN,
+      )
+    ) {
+      pData.lastShot.frame = game.GetFrameCount();
+      if (vectorEquals(VectorZero, pyr.GetShootingInput())) {
+        pData.lastShot.direction = pyr.GetShootingInput();
+      }
+    }
+  }
+  i++;
 }
