@@ -1,4 +1,4 @@
-<items gfxroot="gfx/items/" version="1">
+<items gfxroot="gfx/" version="1">
   <passive cache="" name="Steel Allomancy" description="Push!" gfx="Steel_allomancy.png" />
   <passive cache="" name="Iron Allomancy" description="Pull!" gfx="Iron_allomancy.png" />
 </items>

@@ -71,7 +71,7 @@ const v = {
 
 export function init(): void {
   mod.saveDataManagerRegisterClass(SelecterData, EntityData);
-  mod.saveDataManager("powers", v);
+  mod.saveDataManager("allomancyIronSteel", v);
 }
 
 export function setLastMetalPiece(ent: Entity, metalPiece: Entity): void {

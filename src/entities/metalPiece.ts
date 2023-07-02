@@ -33,6 +33,19 @@ const ref = {
   TEAR_COIN: "gfx/effects/coin/object_coin.anm2",
   SHIELD_COIN_TEAR: "gfx/effects/coin/coinTear_Shield.png",
   PLATE_TEAR: "gfx/effects/plate/object_plate.anm2",
+
+  spriteSheet: {
+    metalPieceCoin: [
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_0.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_1.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_2.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_3.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_4.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_5.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_6.png",
+      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_7.png",
+    ],
+  },
 };
 
 const preconf = {
@@ -83,14 +96,15 @@ function initCoinTear(tear: EntityTear) {
   if (tear.Variant !== BulletVariantCustom.metalPiece && pyr !== undefined) {
     // Start tear coins
     initTearVariant(tear);
+    changeTearSizeSprite(tear);
 
     tear.SubType = MetalPieceSubtype.COIN;
     v.room.coinsWasted++;
     pyr.AddCoins(-1);
 
-    // Shield tear interaction
+    // !! Falta shield tear interaction.
     if (tear.HasTearFlags(TearFlag.SHIELDED)) {
-      tear.GetSprite().ReplaceSpritesheet(0, ref.SHIELD_COIN_TEAR);
+      // tear.GetSprite().ReplaceSpritesheet(0, ref.SHIELD_COIN_TEAR);
       tear.GetSprite().LoadGraphics();
     }
 
@@ -99,14 +113,11 @@ function initCoinTear(tear: EntityTear) {
       tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
     }
 
-    const sizeAnim = getSizeAnimation(tear);
-    log(`animacion[Appear${sizeAnim}]`);
+    // const sizeAnim = getSizeAnimation(tear);
 
-    tear.GetSprite().Play(`Appear${sizeAnim}`, false);
-    // Adjust smaller sizes
-    if (sizeAnim === 0 || sizeAnim === 1) {
-      tear.SpriteScale = tear.SpriteScale.mul(2);
-    }
+    // log(`animacion[Appear${sizeAnim}]`);
+
+    // tear.GetSprite().Play(`Appear${sizeAnim}`, false);
   }
 }
 
@@ -130,6 +141,7 @@ function initTearVariant(tear: EntityTear) {
 }
 
 export function metalPieceBulletUpdate(bullet: Entity): void {
+  /*
   const anim = bullet.GetSprite().GetAnimation();
   if (
     anim.substring(0, anim.length - 1) === "Appear" &&
@@ -137,6 +149,7 @@ export function metalPieceBulletUpdate(bullet: Entity): void {
   ) {
     bullet.GetSprite().Play(`Idle${anim.substring(anim.length)}`, false);
   }
+  */
 }
 
 export function takeCoin(this: void, pyr: EntityPlayer): void {
@@ -302,4 +315,18 @@ function getSizeAnimation(bullet: EntityTear | EntityProjectile): number {
     }
   }
   return 7;
+}
+
+function changeTearSizeSprite(tear: EntityTear) {
+  const sprite = tear.GetSprite();
+  const size = getSizeAnimation(tear);
+  const img = ref.spriteSheet.metalPieceCoin[size];
+  if (img !== undefined) {
+    sprite.ReplaceSpritesheet(0, img);
+    log(`Reemplazado a ${img} con size ${size}`);
+    sprite.LoadGraphics();
+  }
+  if (size === 0 || size === 1) {
+    tear.SpriteScale = tear.SpriteScale.mul(2);
+  }
 }
