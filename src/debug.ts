@@ -7,7 +7,6 @@ import {
   getEntityFromPtrHash,
 } from "isaacscript-common";
 import { mod } from "./mod";
-import * as util from "./utils/util";
 
 class ScreenMessageClass {
   messages: string[] = [];
@@ -91,7 +90,7 @@ export function setVariable(
  * @param entPos Optional. Position where message will be displayed, use entity to take its
  *               position.
  */
-export function addMessage(text: string, entPos?: Vector | Entity): void {
+export function addMessage(text: string, entPos?: Entity): void {
   // To screen
   if (entPos === undefined) {
     // Add lastMessageQuantity if it is a repeated message.
@@ -115,11 +114,10 @@ export function addMessage(text: string, entPos?: Vector | Entity): void {
     newEntityMess.message = text;
     newEntityMess.initFrame = Isaac.GetFrameCount();
     newEntityMess.displacement = 0;
-    if (util.isType<Entity>(entPos)) {
-      const pos = entPos.Position;
-      entPos = pos;
-    }
-    newEntityMess.position = game.GetRoom().WorldToScreenPosition(entPos);
+
+    newEntityMess.position = game
+      .GetRoom()
+      .WorldToScreenPosition(entPos.Position);
 
     debug.position.push(newEntityMess);
   }
@@ -199,7 +197,7 @@ function renderDebug() {
           messVar = `${name}: `;
         }
 
-        if (util.isType<boolean>(value)) {
+        if (typeof value === "boolean") {
           if (value) {
             r = 0;
             g = 1;
@@ -234,7 +232,7 @@ function renderDebug() {
               messVar = `${name}: `;
             }
 
-            if (util.isType<boolean>(value)) {
+            if (typeof value === "boolean") {
               if (value) {
                 r = 0;
                 g = 1;
