@@ -11,7 +11,6 @@ import {
   getEntityFromPtrHash,
   getPlayers,
   isActionTriggered,
-  log,
   vectorEquals,
 } from "isaacscript-common";
 import { EntityData } from "../classes/allomancyIronSteel/EntityData";
@@ -21,9 +20,7 @@ import * as entity from "../entities/entity";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
 import { mod } from "../mod";
-import * as math from "../utils/math";
 import * as pos from "../utils/position";
-import * as util from "../utils/util";
 // import { addPower } from "./power";
 
 export const preconf = {
@@ -132,7 +129,7 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
     // Select entities
     const foundEntities = Isaac.FindInRadius(
       pointer,
-      math.upperBound(
+      Math.min(
         5 + ent.Position.Distance(pointer) / 4,
         preconf.tracer.MAX_RADIUS,
       ),
@@ -217,19 +214,9 @@ export function deselectAllEntities(fromEnt: Entity): void {
   }
 }
 
-export function deselectEntity(sEnt: Entity | PtrHash): void {
-  let baseEnt: Entity | undefined;
-  let basePtr: PtrHash | undefined;
-
-  if (util.isType<Entity>(sEnt)) {
-    baseEnt = sEnt;
-    basePtr = GetPtrHash(sEnt);
-  } else if (getEntityFromPtrHash(sEnt) !== undefined) {
-    baseEnt = getEntityFromPtrHash(sEnt);
-    basePtr = sEnt;
-  } else {
-    log("deslectEntity: entity to deselect not exists");
-  }
+export function deselectEntity(sEnt: Entity): void {
+  const baseEnt = sEnt;
+  const basePtr = GetPtrHash(sEnt);
 
   if (baseEnt !== undefined && basePtr !== undefined) {
     const data = defaultMapGetHash(v.room.entity, baseEnt);
