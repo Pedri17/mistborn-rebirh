@@ -4,5 +4,5 @@ export enum IaState {
   APPROACHING = 2,
   RECEDE = 3,
   TAKE_COIN = 4,
-  SHOT = 5
+  SHOT = 5,
 }
