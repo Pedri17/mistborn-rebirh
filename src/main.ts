@@ -49,12 +49,9 @@ function main() {
   );
 }
 
-function testTears(tear: EntityTear) {
-  // debug.setVariable("Variant", tear.Variant, tear); ebug.setVariable("Subtype", tear.SubType,
-  // tear);
-}
+function testTears(_tear: EntityTear) {}
 
 // test
-function testPickups(pickup: EntityPickup) {
+function testPickups(_pickup: EntityPickup) {
   // debug.setVariable("animation", pickup.GetSprite().GetAnimation(), pickup);
 }
