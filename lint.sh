@@ -20,7 +20,7 @@ npx eslint --max-warnings 0 .
 
 # Check for unused exports.
 # "--error" makes it return an error code of 1 if unused exports are found.
-# npx ts-prune --error
+npx ts-prune --error
 
 # Use `isaac-xml-validator` to validate XML files.
 # (Skip this step if Python is not currently installed for whatever reason.)

@@ -11,6 +11,7 @@ import {
   addStat,
   defaultMapGetHash,
   game,
+  getEntities,
   getPlayers,
   getTearsStat,
   spawn,
@@ -31,13 +32,6 @@ import * as vect from "../utils/vector";
 import * as entity from "./entity";
 
 const ref = {
-  BOMB_COIN_TEAR: "gfx/effects/coin/pickup_coinBomb.anm2",
-  PARTICLE_COIN: "gfx/effects/coin/particle_coin.anm2",
-  TEAR_KNIFE: "gfx/effects/knife/tear_knife.anm2",
-  TEAR_COIN: "gfx/effects/coin/object_coin.anm2",
-  SHIELD_COIN_TEAR: "gfx/effects/coin/coinTear_Shield.png",
-  PLATE_TEAR: "gfx/effects/plate/object_plate.anm2",
-
   spriteSheet: {
     metalPieceCoin: [
       "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_0.png",
@@ -413,6 +407,13 @@ export function getWastedCoins(): void {
       firstPyr.AddCoins(v.level.coinsWasted);
       v.level.coinsWasted = 0;
     }
+  }
+  for (const pickup of getEntities(
+    EntityType.PICKUP,
+    PickupVariantCustom.metalPiece,
+    MetalPieceSubtype.COIN,
+  )) {
+    pickup.Remove();
   }
 }
 
