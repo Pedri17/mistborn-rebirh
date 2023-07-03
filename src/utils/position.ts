@@ -1,29 +1,29 @@
 import { GridCollisionClass } from "isaac-typescript-definitions";
 import { game } from "isaacscript-common";
 
-export function isWall(pos: Vector) {
+export function isWall(pos: Vector): boolean {
   return game.GetRoom().GetGridCollisionAtPos(pos) === GridCollisionClass.WALL;
 }
 
-export function isDoor(pos: Vector) {
+export function isDoor(pos: Vector): boolean {
   return game.GetRoom().GetGridEntityFromPos(pos)?.ToDoor() !== undefined;
 }
 
-export function isObject(pos: Vector) {
+export function isObject(pos: Vector): boolean {
   return (
     game.GetRoom().GetGridCollisionAtPos(pos) === GridCollisionClass.OBJECT
   );
 }
 
-export function isNoneCollision(pos: Vector) {
+export function isNoneCollision(pos: Vector): boolean {
   return game.GetRoom().GetGridCollisionAtPos(pos) === GridCollisionClass.NONE;
 }
 
-export function isGrid(pos: Vector) {
+export function isGrid(pos: Vector): boolean {
   return game.GetRoom().GetGridCollisionAtPos(pos) !== undefined;
 }
 
-export function roomLimitPos(pos: Vector) {
+export function roomLimitPos(): Vector {
   return game
     .GetRoom()
     .GetBottomRightPos()
@@ -31,7 +31,7 @@ export function roomLimitPos(pos: Vector) {
     .sub(Vector(20, 20));
 }
 
-export function roomPosPerOne(pos: Vector) {
+export function roomPosPerOne(pos: Vector): Vector {
   return game
     .GetRoom()
     .GetClampedPosition(pos, 10)
