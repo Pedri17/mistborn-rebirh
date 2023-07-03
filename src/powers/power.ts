@@ -20,7 +20,7 @@ import { PowerOwnerData } from "../classes/power/PowerOwnerData";
 import * as config from "../config";
 import { CollectibleTypeCustom } from "../customVariantType/CollectibleTypeCustom";
 import * as dbg from "../debug";
-import { CollectibleTypeCustomToPower } from "../enums/CollectibleTypeCustomToPower";
+import { collectibleTypeCustomToPower } from "../enums/CollectibleTypeCustomToPower";
 import { Power } from "../enums/Power";
 import { mod } from "../mod";
 import * as allomancyIronSteel from "./allomancyIronSteel";
@@ -226,8 +226,8 @@ export function getCollectiblePower(
   pyr: EntityPlayer,
   colType: CollectibleType,
 ): void {
-  if (CollectibleTypeCustomToPower.has(colType)) {
-    const power = CollectibleTypeCustomToPower.get(colType);
+  if (collectibleTypeCustomToPower.has(colType)) {
+    const power = collectibleTypeCustomToPower.get(colType);
     if (power !== undefined) {
       addPower(pyr, power);
     } else {

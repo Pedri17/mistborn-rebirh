@@ -20,6 +20,7 @@ export function isNoneCollision(pos: Vector): boolean {
 }
 
 export function isGrid(pos: Vector): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   return game.GetRoom().GetGridCollisionAtPos(pos) !== undefined;
 }
 

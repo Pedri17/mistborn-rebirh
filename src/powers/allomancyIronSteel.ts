@@ -218,18 +218,16 @@ export function deselectEntity(sEnt: Entity): void {
   const baseEnt = sEnt;
   const basePtr = GetPtrHash(sEnt);
 
-  if (baseEnt !== undefined && basePtr !== undefined) {
-    const data = defaultMapGetHash(v.room.entity, baseEnt);
-    if (data.selected.from !== undefined) {
-      const selEntities = defaultMapGetHash(
-        v.room.selecter,
-        data.selected.from,
-      ).selectedEntities;
+  const data = defaultMapGetHash(v.room.entity, baseEnt);
+  if (data.selected.from !== undefined) {
+    const selEntities = defaultMapGetHash(
+      v.room.selecter,
+      data.selected.from,
+    ).selectedEntities;
 
-      if (selEntities.includes(basePtr)) {
-        data.selected.is = false;
-        arrayRemoveAll(selEntities, basePtr);
-      }
+    if (selEntities.includes(basePtr)) {
+      data.selected.is = false;
+      arrayRemoveAll(selEntities, basePtr);
     }
   }
 }

@@ -62,7 +62,7 @@ export function setVariable(
 
     if (ent.Exists()) {
       // Ensure that is alive.
-      let variables: Map<string, unknown> = new Map<string, unknown>();
+      const variables: Map<string, unknown> = new Map<string, unknown>();
       variables.set(varName, value);
       if (debug.entities.get(ID) === undefined) {
         // New entity.
