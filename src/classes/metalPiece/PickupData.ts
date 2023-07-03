@@ -3,5 +3,6 @@ export class PickupData {
   anchorage = {
     is: false,
     inWall: false,
+    gridEntityAtached: undefined as GridEntity | undefined,
   };
 }

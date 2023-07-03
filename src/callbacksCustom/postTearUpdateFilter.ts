@@ -12,7 +12,6 @@ export function init(): void {
   );
 }
 
-// !! Temporal.
 function main(tear: EntityTear) {
-  metalPiece.metalPieceBulletUpdate(tear);
+  metalPiece.coinTearUpdate(tear);
 }

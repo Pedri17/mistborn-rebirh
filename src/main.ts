@@ -3,7 +3,10 @@ import * as postFireTear from "./callbacks/postFireTear";
 import * as postInitPlayer from "./callbacks/postInitPlayer";
 import * as postRender from "./callbacks/postRender";
 import * as inputActionPlayer from "./callbacksCustom/inputActionPlayer";
+import * as postGameEndFilter from "./callbacksCustom/postGameEndFilter";
+import * as postNewRoomReordered from "./callbacksCustom/postNewRoomReordered";
 import * as postPlayerCollectibleAdded from "./callbacksCustom/postPlayerCollectibleAdded";
+import * as postPlayerUpdateReordered from "./callbacksCustom/postPlayerUpdateReordered";
 import * as postProjectileKill from "./callbacksCustom/postProjectileKill";
 import * as postTearKill from "./callbacksCustom/postTearKill";
 import * as postTearUpdateFilter from "./callbacksCustom/postTearUpdateFilter";
@@ -29,6 +32,9 @@ function main() {
   postProjectileKill.init();
   postTearKill.init();
   postTearUpdateFilter.init();
+  postPlayerUpdateReordered.init();
+  postNewRoomReordered.init();
+  postGameEndFilter.init();
 
   // INIT FEATURES
   power.init();
@@ -44,11 +50,11 @@ function main() {
 }
 
 function testTears(tear: EntityTear) {
-  debug.setVariable("Variant", tear.Variant, tear);
-  debug.setVariable("Subtype", tear.SubType, tear);
+  // debug.setVariable("Variant", tear.Variant, tear); ebug.setVariable("Subtype", tear.SubType,
+  // tear);
 }
 
 // test
 function testPickups(pickup: EntityPickup) {
-  debug.setVariable("animation", pickup.GetSprite().GetAnimation(), pickup);
+  // debug.setVariable("animation", pickup.GetSprite().GetAnimation(), pickup);
 }

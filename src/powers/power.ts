@@ -45,6 +45,10 @@ export function hasControlsChanged(pyr: EntityPlayer): boolean {
   return defaultMapGetPlayer(v.run.player, pyr).controlsChanged;
 }
 
+export function getCustomStatData(pyr: EntityPlayer): PlayerData["stats"] {
+  return defaultMapGetPlayer(v.run.player, pyr).stats;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const preconf = {
   ALLOMANCY_BAR_MAX: 2500,

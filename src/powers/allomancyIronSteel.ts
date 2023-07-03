@@ -195,6 +195,11 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
   }
 }
 
+export function roomEnter(): void {
+  for (const pyr of getPlayers(true)) {
+    deselectAllEntities(pyr);
+  }
+}
 // SELECTION
 
 export function deselectAllEntities(fromEnt: Entity): void {

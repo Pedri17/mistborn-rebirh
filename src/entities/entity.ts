@@ -78,3 +78,7 @@ export function isMetalic(ent: Entity): boolean {
   return false;
 }
 // !! También falta comprobar la bomba.
+
+export function areColliding(ent1: Entity, ent2: Entity): boolean {
+  return ent1.Position.sub(ent2.Position).Length() < ent1.Size + ent2.Size;
+}

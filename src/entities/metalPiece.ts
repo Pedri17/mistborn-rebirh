@@ -1,4 +1,5 @@
 import {
+  CacheFlag,
   EntityCollisionClass,
   EntityType,
   TearFlag,
@@ -7,18 +8,21 @@ import {
 import {
   DefaultMap,
   VectorZero,
+  addStat,
   defaultMapGetHash,
   game,
-  log,
+  getPlayers,
+  getTearsStat,
   spawn,
   vectorEquals,
 } from "isaacscript-common";
 import { BulletData } from "../classes/metalPiece/BulletData";
-import { NpcData } from "../classes/metalPiece/NpcData";
 import { PickupData } from "../classes/metalPiece/PickupData";
+import { PlayerData } from "../classes/metalPiece/PlayerData";
 import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
+import { Power } from "../enums/Power";
 import { mod } from "../mod";
 import * as allomancyIronSteel from "../powers/allomancyIronSteel";
 import * as power from "../powers/power";
@@ -52,6 +56,7 @@ const preconf = {
   STICKED_TIME: 90,
   FRICTION_PICKUP: 0.3,
   COIN_DMG_MULT: 2,
+  FIRE_DELAY_MULT: 2,
   velocity: {
     MIN_TEAR_TO_HOOK: 20,
   },
@@ -60,16 +65,18 @@ const preconf = {
 // SAVE DATA
 
 const v = {
+  level: {
+    coinsWasted: 0,
+  },
   room: {
     bullet: new DefaultMap<PtrHash, BulletData>(() => new BulletData()),
     pickup: new DefaultMap<PtrHash, PickupData>(() => new PickupData()),
-    npc: new DefaultMap<PtrHash, NpcData>(() => new NpcData()),
-    coinsWasted: 0,
+    player: new DefaultMap<PtrHash, PlayerData>(() => new PlayerData()),
   },
 };
 
 export function init(): void {
-  mod.saveDataManagerRegisterClass(BulletData, PickupData, NpcData);
+  mod.saveDataManagerRegisterClass(BulletData, PickupData);
   mod.saveDataManager("metalPiece", v);
 }
 
@@ -96,28 +103,26 @@ function initCoinTear(tear: EntityTear) {
   if (tear.Variant !== BulletVariantCustom.metalPiece && pyr !== undefined) {
     // Start tear coins
     initTearVariant(tear);
-    changeTearSizeSprite(tear);
-
     tear.SubType = MetalPieceSubtype.COIN;
-    v.room.coinsWasted++;
+
+    v.level.coinsWasted++;
     pyr.AddCoins(-1);
+
+    changeSizeSprite(tear, getSizeAnimation(tear));
+
+    // Set as sticky tear.
+    tear.AddTearFlags(TearFlag.BOOGER);
+
+    // Change rotation to tear velocity.
+    if (!vectorEquals(VectorZero, tear.Velocity)) {
+      tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
+    }
 
     // !! Falta shield tear interaction.
     if (tear.HasTearFlags(TearFlag.SHIELDED)) {
       // tear.GetSprite().ReplaceSpritesheet(0, ref.SHIELD_COIN_TEAR);
       tear.GetSprite().LoadGraphics();
     }
-
-    // Change rotation to tear velocity.
-    if (vectorEquals(VectorZero, tear.Velocity)) {
-      tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
-    }
-
-    // const sizeAnim = getSizeAnimation(tear);
-
-    // log(`animacion[Appear${sizeAnim}]`);
-
-    // tear.GetSprite().Play(`Appear${sizeAnim}`, false);
   }
 }
 
@@ -128,34 +133,105 @@ function initTearVariant(tear: EntityTear) {
   if (tear.Variant !== BulletVariantCustom.metalPiece) {
     tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
     // TODO: Ludovico interaction
-    if (
-      tear.Variant !== BulletVariantCustom.metalPiece &&
-      tear.GetSprite().GetFilename() !== ref.TEAR_COIN
-    ) {
-      tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
-    }
 
     tData.anchoragePosition = tear.Position;
     tData.baseDamage = tear.CollisionDamage * preconf.COIN_DMG_MULT;
   }
 }
 
-export function metalPieceBulletUpdate(bullet: Entity): void {
-  /*
-  const anim = bullet.GetSprite().GetAnimation();
-  if (
-    anim.substring(0, anim.length - 1) === "Appear" &&
-    bullet.GetSprite().IsFinished(`Appear${anim.substring(anim.length)}`)
-  ) {
-    bullet.GetSprite().Play(`Idle${anim.substring(anim.length)}`, false);
+export function coinTearUpdate(tear: EntityTear): void {
+  if (tear.SpawnerEntity !== undefined) {
+    const tData = defaultMapGetHash(v.room.bullet, tear);
+
+    // TODO: Pinking shears interaction and ludovico interaction.
+
+    // Change rotation to velocity direction.
+    if (!vectorEquals(tear.Velocity, VectorZero)) {
+      tear.SpriteRotation = tear.Velocity.GetAngleDegrees();
+    }
+
+    // Take coin tear on contact.
+    if (
+      !tData.isPicked &&
+      tear.FrameCount > 10 &&
+      !vectorEquals(tear.Velocity, VectorZero)
+    ) {
+      for (const thisPyr of getPlayers()) {
+        if (entity.areColliding(tear, thisPyr)) {
+          tData.isPicked = true;
+          reduceTearDelay(thisPyr);
+          takeCoin(thisPyr);
+          tear.Remove();
+        }
+      }
+    }
+
+    // TODO: long ludovico interaction implementation.
+
+    // Sticked to a entity.
+    if (tear.StickTarget !== undefined) {
+      // TODO: interaccion tearFlag.BOGGER, que no se baje el daño.
+      tear.CollisionDamage = 0;
+      tData.timerStick++;
+    } else if (tear.CollisionDamage < tData.baseDamage) {
+      tear.CollisionDamage = tData.baseDamage;
+    }
+
+    // Spawn coin when get max sticked time.
+    if (tData.timerStick > preconf.STICKED_TIME) {
+      tear.Remove();
+    }
   }
-  */
+}
+
+/** CallbackCustom: PostPlayerUpdateReordered */
+export function playerCoinTearOwnerUpdate(pyr: EntityPlayer): void {
+  const pData = defaultMapGetHash(v.room.player, pyr);
+  const statData = power.getCustomStatData(pyr);
+  // Set that player has coin tears if has iron or steel allomancy.
+  if (
+    !pData.coinTears &&
+    (power.hasPower(pyr, Power.AL_IRON) || power.hasPower(pyr, Power.AL_STEEL))
+  ) {
+    pData.coinTears = true;
+  }
+
+  // Change stat on coin tears.
+  if (pData.coinTears) {
+    if (
+      !statData.changed &&
+      power.hasControlsChanged(pyr) &&
+      pyr.GetNumCoins() > 0
+    ) {
+      statData.changed = true;
+      statData.realFireDelay = pyr.MaxFireDelay;
+
+      // Add tear stat, newTearStat-baseTearStat.
+      const addTearStat =
+        getTearsStat(statData.realFireDelay * preconf.FIRE_DELAY_MULT) -
+        getTearsStat(pyr.MaxFireDelay);
+      addStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
+    } else if (
+      statData.changed &&
+      !(power.hasControlsChanged(pyr) && pyr.GetNumCoins() > 0)
+    ) {
+      statData.changed = false;
+      if (pyr.MaxFireDelay > statData.realFireDelay) {
+        const addTearStat =
+          getTearsStat(statData.realFireDelay) - getTearsStat(pyr.MaxFireDelay);
+        addStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
+      }
+    }
+  }
 }
 
 export function takeCoin(this: void, pyr: EntityPlayer): void {
-  if (v.room.coinsWasted > 0) {
+  if (v.level.coinsWasted > 0) {
     pyr.AddCoins(1);
-    v.room.coinsWasted--;
+    v.level.coinsWasted--;
+    reduceTearDelay(pyr);
+  } else {
+    error("A coin was taken when there's not any coin wasted.");
   }
 }
 
@@ -165,30 +241,25 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
 
   // Spawn Coin
   if (
+    !bData.isPicked &&
     bullet.Variant === BulletVariantCustom.metalPiece &&
     bData.spawnedCoin === undefined
   ) {
     const tear = bullet.ToTear();
 
     let anchorageWallAnim: string;
-    let anchorageAnim: string;
-    let spawnAnim: string;
+    const anchorageAnim = "Anchorage";
+    // let anchorageAnim: string;
     const sizeAnim: number = getSizeAnimation(bullet);
 
     // Set pickup subtype
     // TODO: make bullet subtype
     if (bullet.SubType === MetalPieceSubtype.COIN) {
-      anchorageWallAnim = `AnchorageWall${sizeAnim}`;
-      anchorageAnim = `Anchorage${sizeAnim}`;
-      spawnAnim = `Appear${sizeAnim}`;
+      anchorageWallAnim = "AnchorageWall";
     } else if (bullet.SubType === MetalPieceSubtype.KNIFE) {
       anchorageWallAnim = "Anchorage";
-      anchorageAnim = "Anchorage";
-      spawnAnim = "Idle";
     } else if (bullet.SubType === MetalPieceSubtype.PLATE) {
       anchorageWallAnim = "AnchorageWall";
-      anchorageAnim = "Anchorage";
-      spawnAnim = "Appear";
     } else {
       error("Not expected pickup subtype");
     }
@@ -226,11 +297,17 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
           cData.anchorage.inWall = true;
           coin.GetSprite().Play(anchorageWallAnim, true);
           coin.SpriteRotation = bData.collided.velocity.GetAngleDegrees();
+        } else {
+          // To grid anchorage.
+          cData.anchorage.inWall = false;
+          cData.anchorage.gridEntityAtached = game
+            .GetRoom()
+            .GetGridEntityFromPos(coin.Position);
+          coin.GetSprite().Play(anchorageAnim, true);
         }
       }
     } else {
       // Just usual tear coins.
-      log("To just usual tears, do spawn");
       bData.spawnedCoin = spawn(
         EntityType.PICKUP,
         PickupVariantCustom.metalPiece,
@@ -240,23 +317,25 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
       ).ToPickup();
       if (bData.spawnedCoin !== undefined) {
         bData.spawnedCoin.SpriteRotation = bullet.SpriteRotation;
-        // bData.spawnedCoin.GetSprite().Play(spawnAnim, true);
       }
     }
 
-    // Post spawn tear
+    // Post spawn pickup.
     if (bData.spawnedCoin !== undefined) {
       const coin = bData.spawnedCoin;
 
       // Ensure that you cant take this tear.
       bData.isPicked = true;
 
-      // Collision classes
+      // Collision classes.
       if (bullet.Type === EntityType.TEAR) {
         coin.EntityCollisionClass = EntityCollisionClass.ENEMIES;
       } else {
         coin.EntityCollisionClass = EntityCollisionClass.ALL;
       }
+
+      // Change size.
+      changeSizeSprite(coin, getSizeAnimation(bullet));
 
       // If tear coin is selected then select pickup coin.
       allomancyIronSteel.passSelection(bullet, coin);
@@ -296,6 +375,47 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
   }
 }
 
+export function metalPiecePickupUpdate(pickup: EntityPickup): void {
+  const data = defaultMapGetHash(v.room.pickup, pickup);
+
+  // To anchorage.
+  if (data.anchorage.is) {
+    // If anchorage's grid is destroyed it becomes a pickup.
+    const gridEnt = data.anchorage.gridEntityAtached;
+    if (
+      !data.anchorage.inWall &&
+      (gridEnt === undefined ||
+        (gridEnt.ToDoor() !== undefined && gridEnt.State !== 2) ||
+        (gridEnt.ToDoor() === undefined && gridEnt.State !== 1))
+    ) {
+      data.anchorage.is = false;
+      pickup.GetSprite().Play("Idle", true);
+      pickup.Friction = preconf.FRICTION_PICKUP;
+    } else {
+      // To non anchorage metal pieces.
+      if (pickup.SubType === MetalPieceSubtype.PLATE) {
+        pickup.EntityCollisionClass = EntityCollisionClass.ALL;
+      }
+      // Change rotation.
+      if (!vectorEquals(pickup.Velocity, VectorZero)) {
+        pickup.SpriteRotation = pickup.Velocity.GetAngleDegrees();
+      }
+    }
+  }
+  // TODO: magneto interaction
+}
+
+/** CalbackCustom: postNewRoomReordered, postGameEndFilter */
+export function getWastedCoins(): void {
+  const firstPyr = getPlayers(true)[0];
+  if (v.level.coinsWasted > 0) {
+    if (firstPyr !== undefined) {
+      firstPyr.AddCoins(v.level.coinsWasted);
+      v.level.coinsWasted = 0;
+    }
+  }
+}
+
 /** Returns size animation number based on 8 sprites (0-7). */
 function getSizeAnimation(bullet: EntityTear | EntityProjectile): number {
   let scale: number;
@@ -317,16 +437,20 @@ function getSizeAnimation(bullet: EntityTear | EntityProjectile): number {
   return 7;
 }
 
-function changeTearSizeSprite(tear: EntityTear) {
-  const sprite = tear.GetSprite();
-  const size = getSizeAnimation(tear);
+function changeSizeSprite(metalPiece: Entity, size: number) {
+  const sprite = metalPiece.GetSprite();
   const img = ref.spriteSheet.metalPieceCoin[size];
   if (img !== undefined) {
     sprite.ReplaceSpritesheet(0, img);
-    log(`Reemplazado a ${img} con size ${size}`);
     sprite.LoadGraphics();
   }
   if (size === 0 || size === 1) {
-    tear.SpriteScale = tear.SpriteScale.mul(2);
+    metalPiece.SpriteScale = metalPiece.SpriteScale.mul(2);
+  }
+}
+
+function reduceTearDelay(pyr: EntityPlayer) {
+  if (pyr.FireDelay > -1) {
+    pyr.FireDelay = Math.max(pyr.FireDelay - pyr.MaxFireDelay / 2, 0);
   }
 }
