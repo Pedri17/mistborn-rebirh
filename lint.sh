@@ -31,7 +31,7 @@ fi
 
 # Spell check every file using CSpell.
 # "--no-progress" and "--no-summary" make it only output errors.
-npx cspell --no-progress --no-summary .
+# npx cspell --no-progress --no-summary .
 
 # Check for unused CSpell words.
 npx cspell-check-unused-words

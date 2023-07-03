@@ -25,7 +25,7 @@ function main() {
   debug.init();
   mod.AddCallback(ModCallback.POST_TEAR_UPDATE, testTears);
   mod.AddCallback(ModCallback.POST_PICKUP_UPDATE, testPickups);
-  // CALLBACKS
+  // CALLBACKS see how to organise in a future.
   postPlayerCollectibleAdded.init();
   inputActionPlayer.init();
   postInitPlayer.init();
