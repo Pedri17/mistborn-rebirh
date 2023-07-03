@@ -130,7 +130,7 @@ function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
 }
 
 /** Add a power to entityData, later limit player powers. */
-export function addPower(ent: Entity, power: Power): void {
+function addPower(ent: Entity, power: Power) {
   const pyr = ent.ToPlayer();
   let data: PowerOwnerData;
   if (ent.ToNPC() !== undefined) {

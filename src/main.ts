@@ -4,7 +4,9 @@ import * as postInitPlayer from "./callbacks/postInitPlayer";
 import * as postRender from "./callbacks/postRender";
 import * as inputActionPlayer from "./callbacksCustom/inputActionPlayer";
 import * as postGameEndFilter from "./callbacksCustom/postGameEndFilter";
+import * as postGridEntityCollision from "./callbacksCustom/postGridEntityCollision";
 import * as postNewRoomReordered from "./callbacksCustom/postNewRoomReordered";
+import * as postPickupUpdateFilter from "./callbacksCustom/postPickupUpdateFilter";
 import * as postPlayerCollectibleAdded from "./callbacksCustom/postPlayerCollectibleAdded";
 import * as postPlayerUpdateReordered from "./callbacksCustom/postPlayerUpdateReordered";
 import * as postProjectileKill from "./callbacksCustom/postProjectileKill";
@@ -35,6 +37,8 @@ function main() {
   postPlayerUpdateReordered.init();
   postNewRoomReordered.init();
   postGameEndFilter.init();
+  postGridEntityCollision.init();
+  postPickupUpdateFilter.init();
 
   // INIT FEATURES
   power.init();

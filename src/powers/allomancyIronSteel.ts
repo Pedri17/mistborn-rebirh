@@ -23,7 +23,7 @@ import { mod } from "../mod";
 import * as pos from "../utils/position";
 // import { addPower } from "./power";
 
-export const preconf = {
+const preconf = {
   FAST_CRASH_DMG_MULT: 1,
   PUSHED_COIN_DMG_MULT: 1.5,
   velocity: {
@@ -260,11 +260,6 @@ export function passSelection(
   }
   return false;
 }
-
-export function isSelected(ent: Entity): boolean {
-  return defaultMapGetHash(v.room.entity, ent).selected.is;
-}
-
 // FOCUS
 
 function focusEnemy(sEnt: EntityTear, fromEnt: Entity) {
