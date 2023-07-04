@@ -11,7 +11,7 @@
   "files.associations": {
     "*.anm2": "xml",
     "*.dat": "json",
-    ".env*": "shellscript",
+    ".env*": "shellscript"
   },
 
   // We want to always use "lf" to be consistent with all platforms.

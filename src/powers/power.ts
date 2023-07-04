@@ -6,19 +6,17 @@ import {
 import {
   DefaultMap,
   PlayerIndex,
-  addCollectible,
+  VectorZero,
   defaultMapGetHash,
   defaultMapGetPlayer,
   getPlayerIndex,
   getPlayers,
   isActionPressed,
   isActionTriggered,
-  log,
 } from "isaacscript-common";
 import { PlayerData } from "../classes/power/PlayerData";
 import { PowerOwnerData } from "../classes/power/PowerOwnerData";
 import * as config from "../config";
-import { CollectibleTypeCustom } from "../customVariantType/CollectibleTypeCustom";
 import * as dbg from "../debug";
 import { collectibleTypeCustomToPower } from "../enums/CollectibleTypeCustomToPower";
 import { Power } from "../enums/Power";
@@ -49,9 +47,29 @@ export function getCustomStatData(pyr: EntityPlayer): PlayerData["stats"] {
   return defaultMapGetPlayer(v.run.player, pyr).stats;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const preconf = {
   ALLOMANCY_BAR_MAX: 2500,
+  ui: {
+    pos: {
+      STOMACH: [
+        Vector(0.27, 0.054),
+        Vector(0.853, 0.054),
+        Vector(0.208, 0.924),
+        Vector(0.853, 0.924),
+      ],
+      SYMBOLS: [
+        Vector(0.31, 0.032),
+        Vector(0.838, 0.09),
+        Vector(0.194, 0.96),
+        Vector(0.838, 0.96),
+      ],
+    },
+    ref: {
+      BUTTON_ANM: "gfx/ui/ui_button_allomancy_icons.anm2",
+      SYMBOL_ANM: "gfx/ui/ui_allomancy_icons.anm2",
+      STOMACH_ANM: "gfx/ui/ui_stomach.anm2",
+    },
+  },
 };
 
 // BOOLEAN
@@ -65,11 +83,7 @@ export function hasAnyPower(ent: Entity): boolean {
   } else {
     error("Error: entity type not expected.");
   }
-  return (
-    data.powers[0] !== undefined ||
-    data.powers[1] !== undefined ||
-    data.powers[2] !== undefined
-  );
+  return data.powers.length > 0;
 }
 
 export function hasPower(ent: Entity, power: Power): boolean {
@@ -82,14 +96,10 @@ export function hasPower(ent: Entity, power: Power): boolean {
   } else {
     error("Error: entity type not expected.");
   }
-  return (
-    data.powers[0] === power ||
-    data.powers[1] === power ||
-    data.powers[2] === power
-  );
+  return data.powers.includes(power);
 }
 
-// ACTIVE
+// ACTIVE POWER
 
 /**
  * Use any active power.
@@ -111,6 +121,21 @@ function usePower(ent: Entity, power: Power, once?: boolean) {
   }
 }
 
+/** Add a power to entityData, later limit player powers. */
+function addPower(ent: Entity, power: Power) {
+  const pyr = ent.ToPlayer();
+  if (ent.ToNPC() !== undefined) {
+    const data = defaultMapGetHash(v.room.npc, ent);
+    data.powers.push(power);
+  } else if (pyr !== undefined) {
+    const data = defaultMapGetPlayer(v.run.player, pyr);
+    data.powers.push(power);
+    data.isHemalurgyPower[data.powers.length - 1] = false;
+  } else {
+    error("Error: entity type not expected.");
+  }
+}
+
 /**
  * Spend minerals bar, expected to be executed 60 times/sec on postRender callback.
  *
@@ -129,30 +154,138 @@ function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
   return false;
 }
 
-/** Add a power to entityData, later limit player powers. */
-function addPower(ent: Entity, power: Power) {
-  const pyr = ent.ToPlayer();
-  let data: PowerOwnerData;
-  if (ent.ToNPC() !== undefined) {
-    data = defaultMapGetHash(v.room.npc, ent);
-  } else if (pyr !== undefined) {
-    data = defaultMapGetPlayer(v.run.player, pyr);
-  } else {
-    error("Error: entity type not expected.");
+// UI
+function renderUI() {
+  for (let i = 0; i < getPlayers().length - 1; i++) {
+    const pyr = Isaac.GetPlayer(i);
+    const pData = defaultMapGetPlayer(v.run.player, pyr);
+    if (pData.powers.length > 0) {
+      const symbolIcon = Sprite();
+      symbolIcon.Load(preconf.ui.ref.SYMBOL_ANM, true);
+
+      const buttonIcon = Sprite();
+      buttonIcon.Load(preconf.ui.ref.BUTTON_ANM, true);
+
+      const stomachIcon = Sprite();
+      stomachIcon.Load(preconf.ui.ref.STOMACH_ANM, true);
+
+      // Stomach icon.
+      const stomachFrame = Math.round(
+        pData.mineralBar / (preconf.ALLOMANCY_BAR_MAX / 17),
+      );
+
+      if (isUsingPower(pyr)) {
+        stomachIcon.Play("Burning", false);
+      } else {
+        stomachIcon.Play("Idle", false);
+      }
+      stomachIcon.SetFrame(stomachFrame);
+
+      // ControlsChanged active.
+      let opacity;
+      if (!pData.controlsChanged) {
+        opacity = 0.3;
+      } else {
+        opacity = 1;
+      }
+      // !! Probar a solo tocar la opacidad.
+      symbolIcon.Color = Color(
+        symbolIcon.Color.R,
+        symbolIcon.Color.G,
+        symbolIcon.Color.B,
+        opacity,
+      );
+      stomachIcon.Color = Color(
+        stomachIcon.Color.R,
+        stomachIcon.Color.G,
+        stomachIcon.Color.B,
+        opacity,
+      );
+      buttonIcon.Color = Color(
+        buttonIcon.Color.R,
+        buttonIcon.Color.G,
+        buttonIcon.Color.B,
+        opacity,
+      );
+
+      if (i !== 0) {
+        const scale = 0.5;
+        stomachIcon.Scale = Vector(scale, scale);
+        buttonIcon.Scale = Vector(scale, scale);
+        symbolIcon.Scale = Vector(scale, scale);
+      }
+
+      stomachIcon.Render(
+        percToPos(preconf.ui.pos.STOMACH[i]),
+        VectorZero,
+        VectorZero,
+      );
+
+      let div = 1;
+      if (i !== 0) {
+        div = 2;
+      }
+
+      for (let j = 0; j < pData.powers.length - 1; j++) {
+        let name = "";
+        let offset = 0;
+        switch (j) {
+          case 0: {
+            name = "LT";
+            offset = 0;
+            break;
+          }
+          case 1: {
+            name = "RB";
+            offset = 15;
+            break;
+          }
+          case 2: {
+            name = "LB";
+            offset = 30;
+            break;
+          }
+        }
+        buttonIcon.Play(name, true);
+        buttonIcon.Render(
+          percToPos(preconf.ui.pos.SYMBOLS[i]).add(
+            Vector(offset / div, 15 / div),
+          ),
+          Vector(0, 0),
+          Vector(0, 0),
+        );
+        // MR.hud.changeAlomanticIconSprite(1,player)
+        symbolIcon.Render(
+          percToPos(preconf.ui.pos.SYMBOLS[i]).add(Vector(offset / div, 0)),
+          Vector(0, 0),
+          Vector(0, 0),
+        );
+      }
+    }
   }
-  data.powers.push(power);
+}
+
+function percToPos(vectPercentage: Vector | undefined) {
+  if (vectPercentage !== undefined) {
+    const screen = Vector(Isaac.GetScreenWidth(), Isaac.GetScreenHeight());
+    const offset = Vector(
+      1.7777778 * (config.ui.HUDOffset / 40),
+      Options.HUDOffset / 40,
+    );
+    const mulOffset = Vector(
+      vectPercentage.X < 0.5 ? 1 : -1,
+      vectPercentage.Y < 0.5 ? 1 : -1,
+    );
+
+    return vectPercentage.add(offset.mul(mulOffset)).mul(screen);
+  }
+  error("Vector to get percentage is undefined");
 }
 
 // CALLBACKS
 
 /** Callback: postInitPlayer. */
-export function initPlayerWithPowers(pyr: EntityPlayer): void {
-  // Starting values on every player.
-  log(`ID: ${CollectibleTypeCustom.steelAllomancy}`);
-  addCollectible(pyr, CollectibleTypeCustom.steelAllomancy);
-  addCollectible(pyr, CollectibleTypeCustom.ironAllomancy);
-  pyr.AddCoins(5);
-}
+export function initPlayerWithPowers(_pyr: EntityPlayer): void {}
 
 /** CallbackCustom: inputActionPlayer. Block controls when is changed mode. */
 export function blockInputs(
@@ -195,21 +328,15 @@ export function controlIputs(): void {
         for (let j = 0; j < 3; j++) {
           const powerAction = config.powerAction[j];
           const power = pData.powers[j];
-          if (powerAction !== undefined && pData.powers[j] !== undefined) {
-            if (
-              isActionPressed(controller, powerAction) &&
-              power !== undefined
-            ) {
+          if (powerAction !== undefined && power !== undefined) {
+            if (isActionPressed(controller, powerAction)) {
               // Has a power on this slot.
               usePower(pyr, power, false);
             } else {
               // Is not pressing any button.
               allomancyIronSteel.deselectAllEntities(pyr);
             }
-            if (
-              isActionTriggered(controller, powerAction) &&
-              power !== undefined
-            ) {
+            if (isActionTriggered(controller, powerAction)) {
               // Has a power on this slot.
               usePower(pyr, power, true);
               dbg.addMessage("Triggered");
@@ -234,4 +361,26 @@ export function getCollectiblePower(
       error("Trying to add a not implemented power.");
     }
   }
+}
+
+function isUsingPower(pyr: EntityPlayer) {
+  const pData = defaultMapGetPlayer(v.run.player, pyr);
+  if (
+    pData.powers.length > 0 &&
+    pData.controlsChanged &&
+    pData.mineralBar > 0
+  ) {
+    let i = 0;
+    for (const power of pData.powers) {
+      const powerAction = config.powerAction[i];
+      const power = pData.powers[i];
+      if (powerAction !== undefined && power !== undefined) {
+        if (isActionTriggered(pyr.ControllerIndex, powerAction)) {
+          return true;
+        }
+      }
+      i++;
+    }
+  }
+  return false;
 }
