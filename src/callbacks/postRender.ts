@@ -10,4 +10,5 @@ export function init(): void {
 function main() {
   power.controlIputs();
   allomancyIronSteel.checkLastShotDirection();
+  power.renderUI();
 }

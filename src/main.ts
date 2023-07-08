@@ -16,6 +16,7 @@ import * as postTearUpdateFilter from "./callbacksCustom/postTearUpdateFilter";
 import { PickupVariantCustom } from "./customVariantType/PickupVariantCustom";
 import * as debug from "./debug";
 import * as metalPiece from "./entities/metalPiece";
+import { initGlobal } from "./global";
 import { mod } from "./mod";
 import * as allomancyIronSteel from "./powers/allomancyIronSteel";
 import * as power from "./powers/power";
@@ -46,6 +47,7 @@ function main() {
   power.init();
   allomancyIronSteel.init();
   metalPiece.init();
+  initGlobal();
 
   // Register custom entities
   mod.registerCustomPickup(

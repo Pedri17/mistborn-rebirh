@@ -5,7 +5,6 @@ import {
 } from "isaac-typescript-definitions";
 import {
   DefaultMap,
-  PlayerIndex,
   VectorZero,
   defaultMapGetHash,
   defaultMapGetPlayer,
@@ -14,38 +13,15 @@ import {
   isActionPressed,
   isActionTriggered,
 } from "isaacscript-common";
-import { PlayerData } from "../classes/power/PlayerData";
 import { PowerOwnerData } from "../classes/power/PowerOwnerData";
 import * as config from "../config";
 import * as dbg from "../debug";
 import { collectibleTypeCustomToPower } from "../enums/CollectibleTypeCustomToPower";
 import { Power } from "../enums/Power";
+import { PowerUseType } from "../enums/PowerUseType";
+import { g } from "../global";
 import { mod } from "../mod";
 import * as allomancyIronSteel from "./allomancyIronSteel";
-
-// SAVE DATA
-
-const v = {
-  run: {
-    player: new DefaultMap<PlayerIndex, PlayerData>(() => new PlayerData()),
-  },
-  room: {
-    npc: new DefaultMap<PtrHash, PowerOwnerData>(() => new PowerOwnerData()),
-  },
-};
-
-export function init(): void {
-  mod.saveDataManagerRegisterClass(PlayerData, PowerOwnerData);
-  mod.saveDataManager("powers", v);
-}
-
-export function hasControlsChanged(pyr: EntityPlayer): boolean {
-  return defaultMapGetPlayer(v.run.player, pyr).controlsChanged;
-}
-
-export function getCustomStatData(pyr: EntityPlayer): PlayerData["stats"] {
-  return defaultMapGetPlayer(v.run.player, pyr).stats;
-}
 
 const preconf = {
   ALLOMANCY_BAR_MAX: 2500,
@@ -72,14 +48,27 @@ const preconf = {
   },
 };
 
-// BOOLEAN
+// SAVE DATA
+
+const v = {
+  room: {
+    npc: new DefaultMap<PtrHash, PowerOwnerData>(() => new PowerOwnerData()),
+  },
+};
+
+export function init(): void {
+  mod.saveDataManagerRegisterClass(PowerOwnerData);
+  mod.saveDataManager("powers", v);
+}
+
+// BOOLEAN POWER
 export function hasAnyPower(ent: Entity): boolean {
   let data: PowerOwnerData;
   const pyr = ent.ToPlayer();
   if (ent.ToNPC() !== undefined) {
     data = defaultMapGetHash(v.room.npc, ent);
   } else if (pyr !== undefined) {
-    data = defaultMapGetPlayer(v.run.player, pyr);
+    data = defaultMapGetPlayer(g.run.player, pyr);
   } else {
     error("Error: entity type not expected.");
   }
@@ -92,7 +81,7 @@ export function hasPower(ent: Entity, power: Power): boolean {
   if (ent.ToNPC() !== undefined) {
     data = defaultMapGetHash(v.room.npc, ent);
   } else if (pyr !== undefined) {
-    data = defaultMapGetPlayer(v.run.player, pyr);
+    data = defaultMapGetPlayer(g.run.player, pyr);
   } else {
     error("Error: entity type not expected.");
   }
@@ -110,14 +99,28 @@ export function hasPower(ent: Entity, power: Power): boolean {
  * @param once Determines if use once's power activation (from isActionTriggered for example) or a
  *             continue activation (like isActionPressed), some powers needs both options to be used
  *             and others just need one of them.
+ * @param use
  */
-function usePower(ent: Entity, power: Power, once?: boolean) {
+function usePower(ent: Entity, power: Power, use?: PowerUseType) {
+  let data: PowerOwnerData;
+  const pyr = ent.ToPlayer();
+  if (ent.ToNPC() !== undefined) {
+    data = defaultMapGetHash(v.room.npc, ent);
+  } else if (pyr !== undefined) {
+    data = defaultMapGetPlayer(g.run.player, pyr);
+  } else {
+    error("Error: entity type not expected.");
+  }
+
+  // Set power on use.
+  if (use === PowerUseType.END) {
+    data.usingPower = undefined;
+  } else {
+    data.usingPower = power;
+  }
+
   if (power === Power.AL_IRON || power === Power.AL_STEEL) {
-    if (once === true) {
-      allomancyIronSteel.throwTracer(ent);
-    } else {
-      allomancyIronSteel.use(ent, power);
-    }
+    allomancyIronSteel.usePower(ent, power, use);
   }
 }
 
@@ -128,9 +131,17 @@ function addPower(ent: Entity, power: Power) {
     const data = defaultMapGetHash(v.room.npc, ent);
     data.powers.push(power);
   } else if (pyr !== undefined) {
-    const data = defaultMapGetPlayer(v.run.player, pyr);
+    const data = defaultMapGetPlayer(g.run.player, pyr);
+    if (data.powers.length < 1) {
+      data.mineralBar = preconf.ALLOMANCY_BAR_MAX;
+    }
     data.powers.push(power);
     data.isHemalurgyPower[data.powers.length - 1] = false;
+
+    // Special things to do at add certain powers.
+    if (power === Power.AL_STEEL || power === Power.AL_IRON) {
+      data.hasMetalPieceTears = true;
+    }
   } else {
     error("Error: entity type not expected.");
   }
@@ -146,7 +157,7 @@ function addPower(ent: Entity, power: Power) {
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
-  const data = v.run.player.getAndSetDefault(getPlayerIndex(pyr));
+  const data = g.run.player.getAndSetDefault(getPlayerIndex(pyr));
   if (data.mineralBar - quantity >= 0) {
     data.mineralBar -= quantity;
     return true;
@@ -155,10 +166,10 @@ function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
 }
 
 // UI
-function renderUI() {
-  for (let i = 0; i < getPlayers().length - 1; i++) {
+export function renderUI(): void {
+  for (let i = 0; i < getPlayers().length; i++) {
     const pyr = Isaac.GetPlayer(i);
-    const pData = defaultMapGetPlayer(v.run.player, pyr);
+    const pData = defaultMapGetPlayer(g.run.player, pyr);
     if (pData.powers.length > 0) {
       const symbolIcon = Sprite();
       symbolIcon.Load(preconf.ui.ref.SYMBOL_ANM, true);
@@ -182,13 +193,12 @@ function renderUI() {
       stomachIcon.SetFrame(stomachFrame);
 
       // ControlsChanged active.
-      let opacity;
+      let opacity: number;
       if (!pData.controlsChanged) {
         opacity = 0.3;
       } else {
         opacity = 1;
       }
-      // !! Probar a solo tocar la opacidad.
       symbolIcon.Color = Color(
         symbolIcon.Color.R,
         symbolIcon.Color.G,
@@ -226,7 +236,7 @@ function renderUI() {
         div = 2;
       }
 
-      for (let j = 0; j < pData.powers.length - 1; j++) {
+      for (let j = 0; j < pData.powers.length; j++) {
         let name = "";
         let offset = 0;
         switch (j) {
@@ -254,7 +264,14 @@ function renderUI() {
           Vector(0, 0),
           Vector(0, 0),
         );
-        // MR.hud.changeAlomanticIconSprite(1,player)
+
+        if (pData.isHemalurgyPower[j] ?? false) {
+          symbolIcon.Play("hemalurgy", true);
+        } else {
+          symbolIcon.Play("usual", true);
+        }
+
+        symbolIcon.SetFrame(pData.powers[j] as number);
         symbolIcon.Render(
           percToPos(preconf.ui.pos.SYMBOLS[i]).add(Vector(offset / div, 0)),
           Vector(0, 0),
@@ -268,10 +285,8 @@ function renderUI() {
 function percToPos(vectPercentage: Vector | undefined) {
   if (vectPercentage !== undefined) {
     const screen = Vector(Isaac.GetScreenWidth(), Isaac.GetScreenHeight());
-    const offset = Vector(
-      1.7777778 * (config.ui.HUDOffset / 40),
-      Options.HUDOffset / 40,
-    );
+    // !! Ver al final si quiero o no offset.
+    const offset = Vector(1.7777778 * (0 / 40), 0 / 40);
     const mulOffset = Vector(
       vectPercentage.X < 0.5 ? 1 : -1,
       vectPercentage.Y < 0.5 ? 1 : -1,
@@ -293,7 +308,7 @@ export function blockInputs(
   _inputHook: InputHook,
   buttonAction: ButtonAction,
 ): boolean | undefined {
-  const pData = defaultMapGetPlayer(v.run.player, pyr);
+  const pData = defaultMapGetPlayer(g.run.player, pyr);
   // block buttons
   if (pData.controlsChanged) {
     if (
@@ -311,7 +326,7 @@ export function blockInputs(
 export function controlIputs(): void {
   for (const pyr of getPlayers(true)) {
     const controller = pyr.ControllerIndex;
-    const pData = defaultMapGetPlayer(v.run.player, pyr);
+    const pData = defaultMapGetPlayer(g.run.player, pyr);
     dbg.setVariable("Control", pData.controlsChanged, pyr);
 
     // Players that have any power.
@@ -331,14 +346,14 @@ export function controlIputs(): void {
           if (powerAction !== undefined && power !== undefined) {
             if (isActionPressed(controller, powerAction)) {
               // Has a power on this slot.
-              usePower(pyr, power, false);
+              usePower(pyr, power, PowerUseType.CONTINUOUS);
             } else {
               // Is not pressing any button.
-              allomancyIronSteel.deselectAllEntities(pyr);
+              usePower(pyr, power, PowerUseType.END);
             }
             if (isActionTriggered(controller, powerAction)) {
               // Has a power on this slot.
-              usePower(pyr, power, true);
+              usePower(pyr, power, PowerUseType.ONCE);
               dbg.addMessage("Triggered");
             }
           }
@@ -364,14 +379,13 @@ export function getCollectiblePower(
 }
 
 function isUsingPower(pyr: EntityPlayer) {
-  const pData = defaultMapGetPlayer(v.run.player, pyr);
+  const pData = defaultMapGetPlayer(g.run.player, pyr);
   if (
     pData.powers.length > 0 &&
     pData.controlsChanged &&
     pData.mineralBar > 0
   ) {
-    let i = 0;
-    for (const power of pData.powers) {
+    for (let i = 0; i < pData.powers.length; i++) {
       const powerAction = config.powerAction[i];
       const power = pData.powers[i];
       if (powerAction !== undefined && power !== undefined) {

@@ -1,4 +1,8 @@
-import { ButtonAction, EntityType } from "isaac-typescript-definitions";
+import {
+  ButtonAction,
+  Direction,
+  EntityType,
+} from "isaac-typescript-definitions";
 import {
   DefaultMap,
   VectorOne,
@@ -11,17 +15,21 @@ import {
   getEntityFromPtrHash,
   getPlayers,
   isActionTriggered,
+  log,
   vectorEquals,
+  vectorToDirection,
 } from "isaacscript-common";
 import { EntityData } from "../classes/allomancyIronSteel/EntityData";
 import { SelecterData } from "../classes/allomancyIronSteel/SelecterData";
+import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import * as Debug from "../debug";
 import * as entity from "../entities/entity";
+import * as metalPiece from "../entities/metalPiece";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
+import { PowerUseType } from "../enums/PowerUseType";
 import { mod } from "../mod";
 import * as pos from "../utils/position";
-// import { addPower } from "./power";
 
 const preconf = {
   FAST_CRASH_DMG_MULT: 1,
@@ -71,22 +79,115 @@ export function init(): void {
   mod.saveDataManager("allomancyIronSteel", v);
 }
 
-export function setLastMetalPiece(ent: Entity, metalPiece: Entity): void {
-  defaultMapGetHash(v.room.selecter, ent).lastMetalPiece = metalPiece;
-}
+// ACTIVE POWER.
 
-export function getLastMetalPiece(ent: Entity): Entity | undefined {
-  return defaultMapGetHash(v.room.selecter, ent).lastMetalPiece;
+export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
+  if (power === Power.AL_IRON || power === Power.AL_STEEL) {
+    switch (use) {
+      case PowerUseType.ONCE: {
+        throwTracer(ent);
+        break;
+      }
+      case PowerUseType.CONTINUOUS: {
+        activePower(ent, power);
+        break;
+      }
+      case PowerUseType.END: {
+        deselectAllEntities(ent);
+        break;
+      }
+      case undefined: {
+        error("PowerUseType undefined");
+      }
+    }
+  }
 }
 
 /**
  * Use iron or steel allomancy power, it can be used by a player or a npc.
  *
  * @param _ent EntityNPC | EntityPlayer. Entity that use the power.
+ * @param ent
  * @param _power Iron or Steel power to push or pull.
  * @param _dir Optional. Direction for non player entities.
  */
-export function use(_ent: Entity, _power: Power, _dir?: Vector): void {}
+function activePower(ent: Entity, _power: Power, _dir?: Vector) {
+  const data = defaultMapGetHash(v.room.selecter, ent);
+  if (data.selectedEntities.length > 0) {
+    for (const selEntPtr of data.selectedEntities) {
+      let selEnt = getEntityFromPtrHash(selEntPtr);
+      let pushEntity = selEnt;
+
+      // To tear coins.
+      const tear = selEnt?.ToTear();
+      if (
+        tear !== undefined &&
+        tear.Variant === BulletVariantCustom.metalPiece
+      ) {
+        // todo.
+      }
+    }
+  }
+}
+
+export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
+  const data = defaultMapGetHash(v.room.entity, bullet);
+  const coin = metalPiece.getSpawnedCoin(bullet);
+
+  if (bullet.SpawnerEntity !== undefined) {
+    const pData = defaultMapGetHash(v.room.selecter, bullet.SpawnerEntity);
+
+    if (coin !== undefined) {
+      // If tear coin is selected then select pickup coin.
+      if (data.selected.is && data.selected.from !== undefined) {
+        selectEntity(data.selected.from, coin);
+      }
+      // If is the last shot coin then select pickup as it.
+      if (!entity.isEqual(bullet, pData.lastMetalPiece)) {
+        pData.lastMetalPiece = coin;
+      }
+    }
+  }
+}
+
+/** Callback: POST_TEAR_INIT_LATE (metalPiece) */
+export function initMetalPieceTear(tear: EntityTear): void {
+  const pyr = tear.SpawnerEntity?.ToPlayer();
+  if (pyr !== undefined) {
+    defaultMapGetHash(v.room.selecter, pyr).lastMetalPiece = tear;
+    Debug.addMessage("lastMetalPiece", tear);
+  }
+}
+
+/** Callback: POST_GRID_ENTITY_COLLISION. Only to: Tear (metalPiece variant) */
+export function metalPieceGridCollision(_gEnt: GridEntity, ent: Entity): void {
+  const tear = ent.ToTear();
+  const projectile = ent.ToProjectile();
+  const data = defaultMapGetHash(v.room.entity, ent);
+  data.gridTouched = true;
+  if (
+    (vectorToDirection(ent.Velocity) === Direction.RIGHT ||
+      vectorToDirection(ent.Velocity) === Direction.LEFT) &&
+    pos.roomPosPerOne(ent.Position).Y < 0.95 &&
+    pos.roomPosPerOne(ent.Position).Y > 0.05
+  ) {
+    if (tear !== undefined) {
+      // data = Vector(entity.Position.X,entity.Position.Y+(MR.math.round(entity:ToTear().Height)))
+    }
+  }
+}
+
+/** Callback: POST_GRID_ENTITY_COLLISION. Only to: Player, Allomancer enemy. */
+export function selecterGridCollision(_gEnt: GridEntity, ent: Entity): void {
+  const data = defaultMapGetHash(v.room.selecter, ent);
+  if (data.usingPower === Power.AL_IRON || data.usingPower === Power.AL_STEEL) {
+    // !! Ver si es neccesario usar el gridTouched.
+    if (doesVectorHaveLength(ent.Velocity, 10)) {
+      log(`Velocidad mayor de 10, ${ent.Velocity}`);
+      ent.Velocity = ent.Velocity.mul(-0.01);
+    }
+  }
+}
 
 export function throwTracer(ent: Entity, dir?: Vector): void {
   const eData = defaultMapGetHash(v.room.entity, ent);
@@ -192,11 +293,6 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
   }
 }
 
-export function roomEnter(): void {
-  for (const pyr of getPlayers(true)) {
-    deselectAllEntities(pyr);
-  }
-}
 // SELECTION
 
 export function deselectAllEntities(fromEnt: Entity): void {
@@ -242,25 +338,7 @@ export function selectEntity(fromEnt: Entity, ent: Entity): void {
   Debug.setVariable("Seleccionado", true, ent);
 }
 
-/**
- * Pass a selected state from a entity to another one.
- *
- * @param selectedEntity Entity that need to be selected.
- * @param toSelectEntity Entity that will be selected.
- * @returns If it was possible to pass the selected state.
- */
-export function passSelection(
-  selectedEntity: Entity,
-  toSelectEntity: Entity,
-): boolean {
-  const sData = defaultMapGetHash(v.room.entity, selectedEntity);
-  if (sData.selected.is && sData.selected.from !== undefined) {
-    selectEntity(sData.selected.from, toSelectEntity);
-    return true;
-  }
-  return false;
-}
-// FOCUS
+// FOCUS.
 
 function focusEnemy(sEnt: EntityTear, fromEnt: Entity) {
   const data = defaultMapGetHash(v.room.selecter, fromEnt);
@@ -298,19 +376,16 @@ function focusTears(fromEnt: Entity) {
   }
 }
 
-// CALLBACKS
+// CALLBACKS.
 
-/** POST_GRID_ENTITY_COLLISION (player). */
-export function touchGrid(_grEntity: GridEntity, ent: Entity): void {
-  const pyr = ent.ToPlayer();
-  if (pyr !== undefined) {
-    const eData = defaultMapGetHash(v.room.entity, pyr);
-    eData.gridTouched = true;
+/** Callback: postNewRoomReordered */
+export function roomEnter(): void {
+  for (const pyr of getPlayers(true)) {
+    deselectAllEntities(pyr);
   }
-
-  // !! Falta ver cómo se pone a false el grid touched.
 }
 
+/** Callback: postRender */
 export function checkLastShotDirection(): void {
   for (const pyr of getPlayers(true)) {
     const controller = pyr.ControllerIndex;

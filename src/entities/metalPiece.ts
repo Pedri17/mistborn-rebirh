@@ -10,6 +10,7 @@ import {
   VectorZero,
   addStat,
   defaultMapGetHash,
+  defaultMapGetPlayer,
   game,
   getEntities,
   getPlayers,
@@ -23,10 +24,8 @@ import { PlayerData } from "../classes/metalPiece/PlayerData";
 import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
-import { Power } from "../enums/Power";
+import { g } from "../global";
 import { mod } from "../mod";
-import * as allomancyIronSteel from "../powers/allomancyIronSteel";
-import * as power from "../powers/power";
 import * as pos from "../utils/position";
 import * as vect from "../utils/vector";
 import * as entity from "./entity";
@@ -74,18 +73,24 @@ export function init(): void {
   mod.saveDataManager("metalPiece", v);
 }
 
+export function getSpawnedCoin(
+  fromBullet: EntityTear | EntityProjectile,
+): EntityPickup | undefined {
+  return defaultMapGetHash(v.room.bullet, fromBullet).spawnedCoin;
+}
+
 /** Callback: postFireTear */
 export function fireTear(tear: EntityTear): void {
   const pyr = tear.SpawnerEntity?.ToPlayer();
   if (pyr !== undefined) {
+    const gpData = defaultMapGetPlayer(g.run.player, pyr);
     if (
-      power.hasAnyPower(pyr) &&
-      power.hasControlsChanged(pyr) &&
+      gpData.hasMetalPieceTears &&
+      gpData.controlsChanged &&
       pyr.GetNumCoins() > 0
     ) {
       // TODO: knife synergy
       initCoinTear(tear);
-      allomancyIronSteel.setLastMetalPiece(pyr, tear);
     }
   }
 }
@@ -128,7 +133,6 @@ function initTearVariant(tear: EntityTear) {
     tear.ChangeVariant(BulletVariantCustom.metalPiece as TearVariant);
     // TODO: Ludovico interaction
 
-    tData.anchoragePosition = tear.Position;
     tData.baseDamage = tear.CollisionDamage * preconf.COIN_DMG_MULT;
   }
 }
@@ -180,39 +184,32 @@ export function coinTearUpdate(tear: EntityTear): void {
 
 /** CallbackCustom: PostPlayerUpdateReordered */
 export function playerCoinTearOwnerUpdate(pyr: EntityPlayer): void {
-  const pData = defaultMapGetHash(v.room.player, pyr);
-  const statData = power.getCustomStatData(pyr);
-  // Set that player has coin tears if has iron or steel allomancy.
-  if (
-    !pData.coinTears &&
-    (power.hasPower(pyr, Power.AL_IRON) || power.hasPower(pyr, Power.AL_STEEL))
-  ) {
-    pData.coinTears = true;
-  }
+  const gpData = defaultMapGetPlayer(g.run.player, pyr);
 
   // Change stat on coin tears.
-  if (pData.coinTears) {
+  if (gpData.hasMetalPieceTears) {
     if (
-      !statData.changed &&
-      power.hasControlsChanged(pyr) &&
+      !gpData.stats.changed &&
+      gpData.controlsChanged &&
       pyr.GetNumCoins() > 0
     ) {
-      statData.changed = true;
-      statData.realFireDelay = pyr.MaxFireDelay;
+      gpData.stats.changed = true;
+      gpData.stats.realFireDelay = pyr.MaxFireDelay;
 
       // Add tear stat, newTearStat-baseTearStat.
       const addTearStat =
-        getTearsStat(statData.realFireDelay * preconf.FIRE_DELAY_MULT) -
+        getTearsStat(gpData.stats.realFireDelay * preconf.FIRE_DELAY_MULT) -
         getTearsStat(pyr.MaxFireDelay);
       addStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
     } else if (
-      statData.changed &&
-      !(power.hasControlsChanged(pyr) && pyr.GetNumCoins() > 0)
+      gpData.stats.changed &&
+      !(gpData.controlsChanged && pyr.GetNumCoins() > 0)
     ) {
-      statData.changed = false;
-      if (pyr.MaxFireDelay > statData.realFireDelay) {
+      gpData.stats.changed = false;
+      if (pyr.MaxFireDelay > gpData.stats.realFireDelay) {
         const addTearStat =
-          getTearsStat(statData.realFireDelay) - getTearsStat(pyr.MaxFireDelay);
+          getTearsStat(gpData.stats.realFireDelay) -
+          getTearsStat(pyr.MaxFireDelay);
         addStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
       }
     }
@@ -330,20 +327,6 @@ export function remove(bullet: EntityTear | EntityProjectile): void {
 
       // Change size.
       changeSizeSprite(coin, getSizeAnimation(bullet));
-
-      // If tear coin is selected then select pickup coin.
-      allomancyIronSteel.passSelection(bullet, coin);
-
-      // If is the last shot coin then select pickup as it.
-      if (
-        bullet.SpawnerEntity !== undefined &&
-        entity.isEqual(
-          bullet,
-          allomancyIronSteel.getLastMetalPiece(bullet.SpawnerEntity),
-        )
-      ) {
-        allomancyIronSteel.setLastMetalPiece(bullet.SpawnerEntity, coin);
-      }
 
       // TODO: laser interaction
       // TODO: knife interaction

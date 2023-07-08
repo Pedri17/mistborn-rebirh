@@ -9,7 +9,3 @@ export const powerAction: ButtonAction[] = [
   ButtonAction.PILL_CARD,
   ButtonAction.BOMB,
 ];
-
-export const ui = {
-  HUDOffset: 10,
-} as const;

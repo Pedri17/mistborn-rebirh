@@ -11,4 +11,10 @@ export function init(): void {
     PlayerVariant.PLAYER,
     PlayerTypeCustom.TheAllomancer,
   );
+  mod.AddCallbackCustom(
+    ModCallbackCustom.POST_PLAYER_INIT_FIRST,
+    theAllomancer.onCoopBabyInit,
+    PlayerVariant.COOP_BABY,
+    PlayerTypeCustom.TheAllomancer,
+  );
 }

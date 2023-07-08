@@ -6,13 +6,10 @@ import * as allomancyIronSteel from "../powers/allomancyIronSteel";
 export function init(): void {
   mod.AddCallbackCustom(
     ModCallbackCustom.POST_GRID_ENTITY_COLLISION,
-    main,
+    allomancyIronSteel.selecterGridCollision,
     undefined,
     undefined,
     EntityType.PLAYER,
   );
-}
-
-function main(grEntity: GridEntity, ent: Entity) {
-  allomancyIronSteel.touchGrid(grEntity, ent);
+  // !! Añadir enemigos especiales que empleen hierro/acero.
 }
