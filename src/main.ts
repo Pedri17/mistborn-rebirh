@@ -13,6 +13,7 @@ import * as postPlayerUpdateReordered from "./callbacksCustom/postPlayerUpdateRe
 import * as postProjectileKill from "./callbacksCustom/postProjectileKill";
 import * as postTearKill from "./callbacksCustom/postTearKill";
 import * as postTearUpdateFilter from "./callbacksCustom/postTearUpdateFilter";
+import * as preNpcCollisionFilter from "./callbacksCustom/preNpcCollisionFilter";
 import { PickupVariantCustom } from "./customVariantType/PickupVariantCustom";
 import * as debug from "./debug";
 import * as metalPiece from "./entities/metalPiece";
@@ -42,6 +43,7 @@ function main() {
   postGridEntityCollision.init();
   postPickupUpdateFilter.init();
   postPlayerInitFirst.init();
+  preNpcCollisionFilter.init();
 
   // INIT FEATURES
   power.init();

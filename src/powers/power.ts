@@ -62,7 +62,7 @@ export function init(): void {
 }
 
 // BOOLEAN POWER
-export function hasAnyPower(ent: Entity): boolean {
+function hasAnyPower(ent: Entity): boolean {
   let data: PowerOwnerData;
   const pyr = ent.ToPlayer();
   if (ent.ToNPC() !== undefined) {
@@ -75,7 +75,7 @@ export function hasAnyPower(ent: Entity): boolean {
   return data.powers.length > 0;
 }
 
-export function hasPower(ent: Entity, power: Power): boolean {
+function hasPower(ent: Entity, power: Power): boolean {
   let data: PowerOwnerData;
   const pyr = ent.ToPlayer();
   if (ent.ToNPC() !== undefined) {

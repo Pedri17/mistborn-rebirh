@@ -5,4 +5,6 @@ export class EntityData {
   };
 
   gridTouched = false;
+  stickedMetalPiece?: Entity = undefined;
+  hitFrame = 0;
 }

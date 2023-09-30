@@ -8,9 +8,9 @@ import {
 import {
   DefaultMap,
   VectorZero,
-  addStat,
   defaultMapGetHash,
   defaultMapGetPlayer,
+  addPlayerStat,
   game,
   getEntities,
   getPlayers,
@@ -77,6 +77,10 @@ export function getSpawnedCoin(
   fromBullet: EntityTear | EntityProjectile,
 ): EntityPickup | undefined {
   return defaultMapGetHash(v.room.bullet, fromBullet).spawnedCoin;
+}
+
+export function isAnchorage(metalPiece: EntityPickup): PickupData["anchorage"] {
+  return defaultMapGetHash(v.room.pickup, metalPiece).anchorage;
 }
 
 /** Callback: postFireTear */
@@ -200,7 +204,7 @@ export function playerCoinTearOwnerUpdate(pyr: EntityPlayer): void {
       const addTearStat =
         getTearsStat(gpData.stats.realFireDelay * preconf.FIRE_DELAY_MULT) -
         getTearsStat(pyr.MaxFireDelay);
-      addStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
+      addPlayerStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
     } else if (
       gpData.stats.changed &&
       !(gpData.controlsChanged && pyr.GetNumCoins() > 0)
@@ -210,7 +214,7 @@ export function playerCoinTearOwnerUpdate(pyr: EntityPlayer): void {
         const addTearStat =
           getTearsStat(gpData.stats.realFireDelay) -
           getTearsStat(pyr.MaxFireDelay);
-        addStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
+        addPlayerStat(pyr, CacheFlag.FIRE_DELAY, addTearStat);
       }
     }
   }

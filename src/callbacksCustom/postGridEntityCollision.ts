@@ -11,5 +11,8 @@ export function init(): void {
     undefined,
     EntityType.PLAYER,
   );
-  // !! Añadir enemigos especiales que empleen hierro/acero.
+  mod.AddCallbackCustom(
+    ModCallbackCustom.POST_GRID_ENTITY_COLLISION,
+    allomancyIronSteel.enemySelectedGridCollision,
+  );
 }

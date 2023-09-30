@@ -1,6 +1,6 @@
 import {
   ButtonAction,
-  Direction,
+  DamageFlagZero,
   EntityType,
 } from "isaac-typescript-definitions";
 import {
@@ -17,7 +17,6 @@ import {
   isActionTriggered,
   log,
   vectorEquals,
-  vectorToDirection,
 } from "isaacscript-common";
 import { EntityData } from "../classes/allomancyIronSteel/EntityData";
 import { SelecterData } from "../classes/allomancyIronSteel/SelecterData";
@@ -35,18 +34,18 @@ const preconf = {
   FAST_CRASH_DMG_MULT: 1,
   PUSHED_COIN_DMG_MULT: 1.5,
   velocity: {
-    push: {
-      [EntityType.PLAYER]: 7,
-      [EntityType.PICKUP]: 20,
-      [EntityType.TEAR]: 20,
-      [EntityType.BOMB]: 8,
-      [EntityType.FAMILIAR]: 8,
-      [EntityType.KNIFE]: 0,
-      [EntityType.PROJECTILE]: 20,
-      ENEMY: 70,
-      KNIFE_TEAR: 10,
-      KNIFE_PICKUP: 12,
-    },
+    push: new Map<string | EntityType, number>([
+      [EntityType.PLAYER, 7],
+      [EntityType.PICKUP, 20],
+      [EntityType.TEAR, 20],
+      [EntityType.BOMB, 8],
+      [EntityType.FAMILIAR, 8],
+      [EntityType.KNIFE, 0],
+      [EntityType.PROJECTILE, 20],
+      ["ENEMY", 70],
+      ["KNIFE_TEAR", 10],
+      ["KNIFE_PICKUP", 12],
+    ]),
     AIMING_PUSH_ENTITY_VEL: 25,
     MIN_TO_PICKUP_DAMAGE: 15,
     MIN_DOUBLE_HIT: 10,
@@ -113,21 +112,153 @@ export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
  */
 function activePower(ent: Entity, _power: Power, _dir?: Vector) {
   const data = defaultMapGetHash(v.room.selecter, ent);
-  if (data.selectedEntities.length > 0) {
-    for (const selEntPtr of data.selectedEntities) {
-      let selEnt = getEntityFromPtrHash(selEntPtr);
-      let pushEntity = selEnt;
-
+  for (const selEntPtr of data.selectedEntities) {
+    let selEnt = getEntityFromPtrHash(selEntPtr);
+    let pushEntity = selEnt;
+    if (selEnt !== undefined) {
       // To tear coins.
-      const tear = selEnt?.ToTear();
+      const tear = selEnt.ToTear();
+      const sTarget = tear?.StickTarget;
       if (
         tear !== undefined &&
         tear.Variant === BulletVariantCustom.metalPiece
       ) {
-        // todo.
+        if (sTarget !== undefined) {
+          // When a NPC has a sticked metal piece and push it.
+          if (entity.isEqual(sTarget, ent)) {
+            tear.StickTarget = undefined;
+          } else {
+            // If tear is sticked push NPC.
+            pushEntity = sTarget;
+            defaultMapGetHash(v.room.entity, sTarget).stickedMetalPiece = tear;
+          }
+        }
       }
+
+      let toPushEntity = pushEntity;
+      let opposite = false;
+
+      // Opposite if cant move entity.
+      const pushPickup = pushEntity?.ToPickup();
+      if (pushEntity !== undefined && toPushEntity !== undefined) {
+        const pushData = defaultMapGetHash(v.room.entity, pushEntity);
+        if (
+          pushData.gridTouched ||
+          (pushEntity.IsEnemy() && doesVectorHaveLength(pushEntity.Velocity)) ||
+          (pushPickup !== undefined && metalPiece.isAnchorage(pushPickup).is)
+        ) {
+          toPushEntity.Velocity = VectorZero;
+          toPushEntity = ent;
+          opposite = true;
+        }
+      }
+
+      // TODO: pinking shears interaction.
+
+      const velocity = 0;
     }
   }
+}
+
+function getPushVelocity(
+  fromEntity: Entity,
+  pushEntity: Entity,
+  power: Power,
+  opposite: boolean,
+): undefined { // !! Aquí devuelve Vector pero me estaba dando problemas no se muy bien por que
+  let baseMul: number;
+  let oppositeMul: number;
+
+  if (power === Power.AL_IRON) {
+    baseMul = -1.5;
+  } else {
+    baseMul = 0.5;
+  }
+
+  let toPushEntity = pushEntity;
+  let n;
+
+  if (opposite) {
+    oppositeMul = -2;
+    toPushEntity = fromEntity;
+  } else {
+    oppositeMul = 1;
+  }
+
+  // Enemy exception.
+  if (toPushEntity.IsEnemy()) {
+    // Push.
+    const entBase = preconf.velocity.push.get("ENEMY");
+    if (entBase !== undefined) {
+      if (power === Power.AL_STEEL) {
+        if (entBase !== undefined) {
+          n =
+            entBase +
+            (preconf.velocity.AIMING_PUSH_ENTITY_VEL -
+              pushEntity.Velocity.Length());
+        }
+      } else {
+        // Pull.
+        n = entBase;
+      }
+    }
+  } else {
+    const entBase = preconf.velocity.push.get(toPushEntity.Type);
+    if (entBase !== undefined) {
+      n = entBase;
+    } else {
+      error("Entity Type Velocity not configured.");
+    }
+  }
+}
+
+/** Callback: POST_GRID_ENTITY_COLLISION */
+export function enemySelectedGridCollision(
+  _gEnt: GridEntity,
+  ent: Entity,
+): void {
+  const data = defaultMapGetHash(v.room.entity, ent);
+  const sticked = data.stickedMetalPiece?.ToTear();
+  if (sticked !== undefined && ent.IsEnemy()) {
+    if (data.selected.is) {
+      if (
+        doesVectorHaveLength(ent.Velocity, preconf.velocity.MIN_TO_GRID_SMASH)
+      ) {
+        // If is enemy and collision in grid drop coin and if it's at high speed get a hit.
+        if (
+          game.GetFrameCount() - data.hitFrame >
+          preconf.time.BETWEEN_GRID_SMASH
+        ) {
+          ent.AddVelocity(ent.Velocity.mul(-5));
+          ent.TakeDamage(
+            sticked.CollisionDamage * preconf.FAST_CRASH_DMG_MULT,
+            DamageFlagZero,
+            EntityRef(sticked.SpawnerEntity),
+            60,
+          );
+          data.hitFrame = game.GetFrameCount();
+        }
+      }
+      sticked.StickTarget = undefined;
+    }
+  }
+}
+
+export function enemySelectedEntityCollision(
+  ent: Entity,
+  collider: Entity,
+  _low: boolean,
+): boolean | undefined {
+  const data = defaultMapGetHash(v.room.entity, ent);
+  const sticked = data.stickedMetalPiece?.ToTear();
+  const fromEnt = sticked?.SpawnerEntity;
+  if (sticked !== undefined && fromEnt !== undefined && ent.IsEnemy()) {
+    // Deselect if touch selecter entity.
+    if (entity.isEqual(collider, sticked.SpawnerEntity)) {
+      deselectEntity(fromEnt);
+    }
+  }
+  return undefined;
 }
 
 export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
@@ -146,6 +277,15 @@ export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
       if (!entity.isEqual(bullet, pData.lastMetalPiece)) {
         pData.lastMetalPiece = coin;
       }
+
+      // Deselect sticked NPC when tear is destroyed.
+      const tear = bullet.ToTear();
+      if (tear !== undefined && tear.StickTarget !== undefined) {
+        const npcData = defaultMapGetHash(v.room.entity, tear.StickTarget);
+        if (npcData.selected.is) {
+          deselectEntity(tear.StickTarget);
+        }
+      }
     }
   }
 }
@@ -153,28 +293,17 @@ export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
 /** Callback: POST_TEAR_INIT_LATE (metalPiece) */
 export function initMetalPieceTear(tear: EntityTear): void {
   const pyr = tear.SpawnerEntity?.ToPlayer();
+  log("hola");
   if (pyr !== undefined) {
     defaultMapGetHash(v.room.selecter, pyr).lastMetalPiece = tear;
     Debug.addMessage("lastMetalPiece", tear);
+    log("hola 2");
   }
 }
 
 /** Callback: POST_GRID_ENTITY_COLLISION. Only to: Tear (metalPiece variant) */
 export function metalPieceGridCollision(_gEnt: GridEntity, ent: Entity): void {
   const tear = ent.ToTear();
-  const projectile = ent.ToProjectile();
-  const data = defaultMapGetHash(v.room.entity, ent);
-  data.gridTouched = true;
-  if (
-    (vectorToDirection(ent.Velocity) === Direction.RIGHT ||
-      vectorToDirection(ent.Velocity) === Direction.LEFT) &&
-    pos.roomPosPerOne(ent.Position).Y < 0.95 &&
-    pos.roomPosPerOne(ent.Position).Y > 0.05
-  ) {
-    if (tear !== undefined) {
-      // data = Vector(entity.Position.X,entity.Position.Y+(MR.math.round(entity:ToTear().Height)))
-    }
-  }
 }
 
 /** Callback: POST_GRID_ENTITY_COLLISION. Only to: Player, Allomancer enemy. */
