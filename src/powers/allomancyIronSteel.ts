@@ -2,9 +2,16 @@ import {
   ButtonAction,
   DamageFlagZero,
   EntityType,
+  ModCallback,
+  ProjectileVariant,
+  TearVariant,
 } from "isaac-typescript-definitions";
 import {
+  Callback,
+  CallbackCustom,
   DefaultMap,
+  ModCallbackCustom,
+  ModFeature,
   VectorOne,
   VectorZero,
   arrayRemoveAll,
@@ -27,7 +34,6 @@ import * as metalPiece from "../entities/metalPiece";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
 import { PowerUseType } from "../enums/PowerUseType";
-import { mod } from "../mod";
 import * as pos from "../utils/position";
 
 const preconf = {
@@ -65,7 +71,6 @@ const preconf = {
 };
 
 // SAVE DATA
-
 const v = {
   room: {
     selecter: new DefaultMap<PtrHash, SelecterData>(() => new SelecterData()),
@@ -73,13 +78,16 @@ const v = {
   },
 };
 
-export function init(): void {
-  mod.saveDataManagerRegisterClass(SelecterData, EntityData);
-  mod.saveDataManager("allomancyIronSteel", v);
-}
-
 // ACTIVE POWER.
 
+/**
+ * Uses this power.
+ *
+ * @param ent Entity that uses the power (PowerOwnerEntity).
+ * @param power Power that is used. It can be Iron or Steel.
+ * @param use PowerUseType. Determines type of power use, it can be ONCE, CONTINUOUS and END and
+ *            determines the moment of the press.
+ */
 export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
   if (power === Power.AL_IRON || power === Power.AL_STEEL) {
     switch (use) {
@@ -160,12 +168,14 @@ function activePower(ent: Entity, _power: Power, _dir?: Vector) {
   }
 }
 
+// !! En proceso
 function getPushVelocity(
   fromEntity: Entity,
   pushEntity: Entity,
   power: Power,
   opposite: boolean,
-): undefined { // !! Aquí devuelve Vector pero me estaba dando problemas no se muy bien por que
+): undefined {
+  // !! Aquí devuelve Vector pero me estaba dando problemas no se muy bien por que
   let baseMul: number;
   let oppositeMul: number;
 
@@ -212,58 +222,9 @@ function getPushVelocity(
   }
 }
 
-/** Callback: POST_GRID_ENTITY_COLLISION */
-export function enemySelectedGridCollision(
-  _gEnt: GridEntity,
-  ent: Entity,
-): void {
-  const data = defaultMapGetHash(v.room.entity, ent);
-  const sticked = data.stickedMetalPiece?.ToTear();
-  if (sticked !== undefined && ent.IsEnemy()) {
-    if (data.selected.is) {
-      if (
-        doesVectorHaveLength(ent.Velocity, preconf.velocity.MIN_TO_GRID_SMASH)
-      ) {
-        // If is enemy and collision in grid drop coin and if it's at high speed get a hit.
-        if (
-          game.GetFrameCount() - data.hitFrame >
-          preconf.time.BETWEEN_GRID_SMASH
-        ) {
-          ent.AddVelocity(ent.Velocity.mul(-5));
-          ent.TakeDamage(
-            sticked.CollisionDamage * preconf.FAST_CRASH_DMG_MULT,
-            DamageFlagZero,
-            EntityRef(sticked.SpawnerEntity),
-            60,
-          );
-          data.hitFrame = game.GetFrameCount();
-        }
-      }
-      sticked.StickTarget = undefined;
-    }
-  }
-}
-
-export function enemySelectedEntityCollision(
-  ent: Entity,
-  collider: Entity,
-  _low: boolean,
-): boolean | undefined {
-  const data = defaultMapGetHash(v.room.entity, ent);
-  const sticked = data.stickedMetalPiece?.ToTear();
-  const fromEnt = sticked?.SpawnerEntity;
-  if (sticked !== undefined && fromEnt !== undefined && ent.IsEnemy()) {
-    // Deselect if touch selecter entity.
-    if (entity.isEqual(collider, sticked.SpawnerEntity)) {
-      deselectEntity(fromEnt);
-    }
-  }
-  return undefined;
-}
-
 export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
   const data = defaultMapGetHash(v.room.entity, bullet);
-  const coin = metalPiece.getSpawnedCoin(bullet);
+  const coin = metalPiece.getSpawnedMetalPiece(bullet);
 
   if (bullet.SpawnerEntity !== undefined) {
     const pData = defaultMapGetHash(v.room.selecter, bullet.SpawnerEntity);
@@ -286,34 +247,6 @@ export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
           deselectEntity(tear.StickTarget);
         }
       }
-    }
-  }
-}
-
-/** Callback: POST_TEAR_INIT_LATE (metalPiece) */
-export function initMetalPieceTear(tear: EntityTear): void {
-  const pyr = tear.SpawnerEntity?.ToPlayer();
-  log("hola");
-  if (pyr !== undefined) {
-    defaultMapGetHash(v.room.selecter, pyr).lastMetalPiece = tear;
-    Debug.addMessage("lastMetalPiece", tear);
-    log("hola 2");
-  }
-}
-
-/** Callback: POST_GRID_ENTITY_COLLISION. Only to: Tear (metalPiece variant) */
-export function metalPieceGridCollision(_gEnt: GridEntity, ent: Entity): void {
-  const tear = ent.ToTear();
-}
-
-/** Callback: POST_GRID_ENTITY_COLLISION. Only to: Player, Allomancer enemy. */
-export function selecterGridCollision(_gEnt: GridEntity, ent: Entity): void {
-  const data = defaultMapGetHash(v.room.selecter, ent);
-  if (data.usingPower === Power.AL_IRON || data.usingPower === Power.AL_STEEL) {
-    // !! Ver si es neccesario usar el gridTouched.
-    if (doesVectorHaveLength(ent.Velocity, 10)) {
-      log(`Velocidad mayor de 10, ${ent.Velocity}`);
-      ent.Velocity = ent.Velocity.mul(-0.01);
     }
   }
 }
@@ -424,6 +357,7 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
 
 // SELECTION
 
+/** Deselect every selected entity from a Selecter Entity */
 export function deselectAllEntities(fromEnt: Entity): void {
   const data = defaultMapGetHash(v.room.selecter, fromEnt);
   if (data.selectedEntities.length > 0) {
@@ -439,6 +373,7 @@ export function deselectAllEntities(fromEnt: Entity): void {
   }
 }
 
+/** Deselect a specific entity from the selectedEntities array on the Selecter Entity. */
 export function deselectEntity(sEnt: Entity): void {
   const baseEnt = sEnt;
   const basePtr = GetPtrHash(sEnt);
@@ -505,35 +440,146 @@ function focusTears(fromEnt: Entity) {
   }
 }
 
-// CALLBACKS.
+export class AllomancyIronSteel extends ModFeature {
+  v = v;
 
-/** Callback: postNewRoomReordered */
-export function roomEnter(): void {
-  for (const pyr of getPlayers(true)) {
-    deselectAllEntities(pyr);
+  /** On room enter deselect all entities. */
+  @CallbackCustom(ModCallbackCustom.POST_NEW_ROOM_REORDERED)
+  roomEnter(): void {
+    for (const pyr of getPlayers(true)) {
+      deselectAllEntities(pyr);
+    }
   }
-}
 
-/** Callback: postRender */
-export function checkLastShotDirection(): void {
-  for (const pyr of getPlayers(true)) {
-    const controller = pyr.ControllerIndex;
-    const pData = defaultMapGetHash(v.room.selecter, pyr);
+  /** Save last shot direction from a player that have a power. */
+  @Callback(ModCallback.POST_RENDER)
+  checkLastShotDirection(): void {
+    for (const pyr of getPlayers(true)) {
+      const controller = pyr.ControllerIndex;
+      const pData = defaultMapGetHash(v.room.selecter, pyr);
 
-    // Players that have any power. Get last direction shoot and that frame.
-    if (
-      isActionTriggered(
-        controller,
-        ButtonAction.SHOOT_LEFT,
-        ButtonAction.SHOOT_RIGHT,
-        ButtonAction.SHOOT_UP,
-        ButtonAction.SHOOT_DOWN,
-      )
-    ) {
-      pData.lastShot.frame = game.GetFrameCount();
-      if (vectorEquals(VectorZero, pyr.GetShootingInput())) {
-        pData.lastShot.direction = pyr.GetShootingInput();
+      // Players that have any power. Get last direction shoot and that frame.
+      if (
+        isActionTriggered(
+          controller,
+          ButtonAction.SHOOT_LEFT,
+          ButtonAction.SHOOT_RIGHT,
+          ButtonAction.SHOOT_UP,
+          ButtonAction.SHOOT_DOWN,
+        )
+      ) {
+        pData.lastShot.frame = game.GetFrameCount();
+        if (vectorEquals(VectorZero, pyr.GetShootingInput())) {
+          pData.lastShot.direction = pyr.GetShootingInput();
+        }
       }
     }
+  }
+
+  // !! En proceso
+  @CallbackCustom(
+    ModCallbackCustom.POST_TEAR_INIT_LATE,
+    BulletVariantCustom.metalPiece as TearVariant,
+  )
+  initMetalPieceTear(tear: EntityTear): void {
+    const pyr = tear.SpawnerEntity?.ToPlayer();
+    log("hola");
+    if (pyr !== undefined) {
+      defaultMapGetHash(v.room.selecter, pyr).lastMetalPiece = tear;
+      Debug.addMessage("lastMetalPiece", tear);
+      log("hola 2");
+    }
+  }
+
+  // !! En proceso
+  @CallbackCustom(ModCallbackCustom.POST_GRID_ENTITY_COLLISION)
+  metalPieceGridCollision(_gEnt: GridEntity, ent: Entity): void {
+    const tear = ent.ToTear();
+  }
+
+  // !! En proceso
+  @CallbackCustom(
+    ModCallbackCustom.POST_GRID_ENTITY_COLLISION,
+    undefined,
+    undefined,
+    EntityType.PLAYER,
+  )
+  selecterGridCollision(_gEnt: GridEntity, ent: Entity): void {
+    const data = defaultMapGetHash(v.room.selecter, ent);
+    if (
+      data.usingPower === Power.AL_IRON ||
+      data.usingPower === Power.AL_STEEL
+    ) {
+      // !! Ver si es neccesario usar el gridTouched.
+      if (doesVectorHaveLength(ent.Velocity, 10)) {
+        log(`Velocidad mayor de 10, ${ent.Velocity}`);
+        ent.Velocity = ent.Velocity.mul(-0.01);
+      }
+    }
+  }
+
+  // ?? Revisar
+  @CallbackCustom(ModCallbackCustom.PRE_NPC_COLLISION_FILTER)
+  enemySelectedEntityCollision(
+    ent: Entity,
+    collider: Entity,
+    _low: boolean,
+  ): boolean | undefined {
+    const data = defaultMapGetHash(v.room.entity, ent);
+    const sticked = data.stickedMetalPiece?.ToTear();
+    const fromEnt = sticked?.SpawnerEntity;
+    if (sticked !== undefined && fromEnt !== undefined && ent.IsEnemy()) {
+      // Deselect if touch selecter entity.
+      if (entity.isEqual(collider, sticked.SpawnerEntity)) {
+        deselectEntity(fromEnt);
+      }
+    }
+    return undefined;
+  }
+
+  // ?? Ver si funciona
+  @CallbackCustom(ModCallbackCustom.POST_GRID_ENTITY_COLLISION)
+  enemySelectedGridCollision(_gEnt: GridEntity, ent: Entity): void {
+    const data = defaultMapGetHash(v.room.entity, ent);
+    const sticked = data.stickedMetalPiece?.ToTear();
+    if (sticked !== undefined && ent.IsEnemy()) {
+      if (data.selected.is) {
+        if (
+          doesVectorHaveLength(ent.Velocity, preconf.velocity.MIN_TO_GRID_SMASH)
+        ) {
+          // If is enemy and collision in grid drop coin and if it's at high speed get a hit.
+          if (
+            game.GetFrameCount() - data.hitFrame >
+            preconf.time.BETWEEN_GRID_SMASH
+          ) {
+            ent.AddVelocity(ent.Velocity.mul(-5));
+            ent.TakeDamage(
+              sticked.CollisionDamage * preconf.FAST_CRASH_DMG_MULT,
+              DamageFlagZero,
+              EntityRef(sticked.SpawnerEntity),
+              60,
+            );
+            data.hitFrame = game.GetFrameCount();
+          }
+        }
+        sticked.StickTarget = undefined;
+      }
+    }
+  }
+
+  @CallbackCustom(
+    ModCallbackCustom.POST_PROJECTILE_KILL,
+    BulletVariantCustom.metalPiece as ProjectileVariant,
+  )
+  projectileRemove(bullet: EntityProjectile) {
+    bulletRemove(bullet);
+  }
+
+  @CallbackCustom(
+    ModCallbackCustom.POST_TEAR_KILL,
+    BulletVariantCustom.metalPiece as TearVariant,
+  )
+  tearRemove(bullet: EntityTear) {
+    bulletRemove(bullet);
   }
 }

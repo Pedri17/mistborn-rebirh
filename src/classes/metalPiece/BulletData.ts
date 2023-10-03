@@ -5,7 +5,7 @@ export class BulletData {
   anchoragePosition: Vector = VectorZero;
   isPicked = false;
   timerStick = 0;
-  spawnedCoin?: EntityPickup = undefined;
+  spawnedMetalPiece?: EntityPickup = undefined;
 
   collided = {
     is: false,

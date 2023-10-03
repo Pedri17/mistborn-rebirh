@@ -1,54 +1,32 @@
 import { ModCallback } from "isaac-typescript-definitions";
-import * as postFireTear from "./callbacks/postFireTear";
-import * as postInitPlayer from "./callbacks/postInitPlayer";
-import * as postRender from "./callbacks/postRender";
-import * as inputActionPlayer from "./callbacksCustom/inputActionPlayer";
-import * as postGameEndFilter from "./callbacksCustom/postGameEndFilter";
-import * as postGridEntityCollision from "./callbacksCustom/postGridEntityCollision";
-import * as postNewRoomReordered from "./callbacksCustom/postNewRoomReordered";
-import * as postPickupUpdateFilter from "./callbacksCustom/postPickupUpdateFilter";
-import * as postPlayerCollectibleAdded from "./callbacksCustom/postPlayerCollectibleAdded";
-import * as postPlayerInitFirst from "./callbacksCustom/postPlayerInitFirst";
-import * as postPlayerUpdateReordered from "./callbacksCustom/postPlayerUpdateReordered";
-import * as postProjectileKill from "./callbacksCustom/postProjectileKill";
-import * as postTearKill from "./callbacksCustom/postTearKill";
-import * as postTearUpdateFilter from "./callbacksCustom/postTearUpdateFilter";
-import * as preNpcCollisionFilter from "./callbacksCustom/preNpcCollisionFilter";
+import { initModFeatures } from "isaacscript-common";
+import { TheAllomancer } from "./characters/theAlomancer";
 import { PickupVariantCustom } from "./customVariantType/PickupVariantCustom";
 import * as debug from "./debug";
 import * as metalPiece from "./entities/metalPiece";
+import { MetalPiece } from "./entities/metalPiece";
 import { initGlobal } from "./global";
 import { mod } from "./mod";
-import * as allomancyIronSteel from "./powers/allomancyIronSteel";
-import * as power from "./powers/power";
+import { AllomancyIronSteel } from "./powers/allomancyIronSteel";
+import { Powers } from "./powers/power";
+
+const MOD_FEATURES = [
+  Powers,
+  AllomancyIronSteel,
+  MetalPiece,
+  TheAllomancer,
+] as const;
 
 main();
 
 function main() {
+  initModFeatures(mod, MOD_FEATURES);
+
   debug.init();
   mod.AddCallback(ModCallback.POST_TEAR_UPDATE, testTears);
   mod.AddCallback(ModCallback.POST_PICKUP_UPDATE, testPickups);
-  // CALLBACKS see how to organise in a future.
-  postPlayerCollectibleAdded.init();
-  inputActionPlayer.init();
-  postInitPlayer.init();
-  postRender.init();
-  postFireTear.init();
-  postProjectileKill.init();
-  postTearKill.init();
-  postTearUpdateFilter.init();
-  postPlayerUpdateReordered.init();
-  postNewRoomReordered.init();
-  postGameEndFilter.init();
-  postGridEntityCollision.init();
-  postPickupUpdateFilter.init();
-  postPlayerInitFirst.init();
-  preNpcCollisionFilter.init();
 
   // INIT FEATURES
-  power.init();
-  allomancyIronSteel.init();
-  metalPiece.init();
   initGlobal();
 
   // Register custom entities
