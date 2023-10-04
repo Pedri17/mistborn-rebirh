@@ -29,12 +29,13 @@ import { EntityData } from "../classes/allomancyIronSteel/EntityData";
 import { SelecterData } from "../classes/allomancyIronSteel/SelecterData";
 import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import * as Debug from "../debug";
-import * as entity from "../entities/entity";
 import * as metalPiece from "../entities/metalPiece";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
 import { PowerUseType } from "../enums/PowerUseType";
+import * as entity from "../utils/entity";
 import * as pos from "../utils/position";
+import * as vect from "../utils/vector";
 
 const preconf = {
   FAST_CRASH_DMG_MULT: 1,
@@ -118,12 +119,12 @@ export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
  * @param _power Iron or Steel power to push or pull.
  * @param _dir Optional. Direction for non player entities.
  */
-function activePower(ent: Entity, _power: Power, _dir?: Vector) {
+function activePower(ent: Entity, power: Power, _dir?: Vector) {
   const data = defaultMapGetHash(v.room.selecter, ent);
   for (const selEntPtr of data.selectedEntities) {
     let selEnt = getEntityFromPtrHash(selEntPtr);
-    let pushEntity = selEnt;
-    if (selEnt !== undefined) {
+    let pushEntity = selEnt; // Entity that is trying to push.
+    if (selEnt !== undefined && pushEntity !== undefined) {
       // To tear coins.
       const tear = selEnt.ToTear();
       const sTarget = tear?.StickTarget;
@@ -143,13 +144,13 @@ function activePower(ent: Entity, _power: Power, _dir?: Vector) {
         }
       }
 
-      let toPushEntity = pushEntity;
+      let toPushEntity = pushEntity; // Entity that will be pushed, it can be the entity that is trying to push another one.
       let opposite = false;
+      const pushData = defaultMapGetHash(v.room.entity, pushEntity);
 
       // Opposite if cant move entity.
-      const pushPickup = pushEntity?.ToPickup();
-      if (pushEntity !== undefined && toPushEntity !== undefined) {
-        const pushData = defaultMapGetHash(v.room.entity, pushEntity);
+      const pushPickup = pushEntity.ToPickup();
+      if (toPushEntity !== undefined) {
         if (
           pushData.gridTouched ||
           (pushEntity.IsEnemy() && doesVectorHaveLength(pushEntity.Velocity)) ||
@@ -160,10 +161,34 @@ function activePower(ent: Entity, _power: Power, _dir?: Vector) {
           opposite = true;
         }
       }
-
       // TODO: pinking shears interaction.
 
-      const velocity = 0;
+      const velocity = getPushVelocity(ent, pushEntity, power, opposite);
+
+      // !! Ver si es necesario compensar la velocidad del enemy
+
+      // Add pull/push velocity.
+      toPushEntity.AddVelocity(velocity);
+
+      // !! Ver si es necesario lo de compensar la velocidad de empuje a los enemigos del mod
+
+      // If has a sticked tear change tear position to enemy position
+      const stickedMP = pushData.stickedMetalPiece?.ToTear();
+      if (stickedMP !== undefined) {
+        stickedMP.Position = pushEntity.Position.add(stickedMP.StickDiff);
+      }
+
+      // TODO laser exception
+
+      // Unpin coins
+      if (pushPickup !== undefined && metalPiece.isAnchorage(pushPickup).is) {
+        metalPiece.unpinAnchorage(pushPickup, ent);
+      }
+
+      // If player touch grid, deselect entity
+      if (data.gridTouched && pushData.gridTouched) {
+        deselectEntity(pushEntity); // !! Comprobar si está bien
+      }
     }
   }
 }
@@ -174,8 +199,7 @@ function getPushVelocity(
   pushEntity: Entity,
   power: Power,
   opposite: boolean,
-): undefined {
-  // !! Aquí devuelve Vector pero me estaba dando problemas no se muy bien por que
+): Vector {
   let baseMul: number;
   let oppositeMul: number;
 
@@ -195,24 +219,24 @@ function getPushVelocity(
     oppositeMul = 1;
   }
 
-  // Enemy exception.
+  // Enemy case.
   if (toPushEntity.IsEnemy()) {
     // Push.
     const entBase = preconf.velocity.push.get("ENEMY");
     if (entBase !== undefined) {
       if (power === Power.AL_STEEL) {
-        if (entBase !== undefined) {
-          n =
-            entBase +
-            (preconf.velocity.AIMING_PUSH_ENTITY_VEL -
-              pushEntity.Velocity.Length());
-        }
+        n =
+          entBase +
+          (preconf.velocity.AIMING_PUSH_ENTITY_VEL -
+            pushEntity.Velocity.Length());
       } else {
         // Pull.
         n = entBase;
       }
     }
   } else {
+    // TODO KNIFE CASE
+    // Usual case
     const entBase = preconf.velocity.push.get(toPushEntity.Type);
     if (entBase !== undefined) {
       n = entBase;
@@ -220,9 +244,22 @@ function getPushVelocity(
       error("Entity Type Velocity not configured.");
     }
   }
+
+  if (n !== undefined) {
+    return vect.fromToEntity(
+      pushEntity,
+      fromEntity,
+      oppositeMul *
+        (n / 100) *
+        (vect.distanceMult(fromEntity.Position, pushEntity.Position, 600) +
+          baseMul),
+    );
+  } else {
+    error("Velocity type is not configured");
+  }
 }
 
-export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
+function bulletRemove(bullet: EntityTear | EntityProjectile): void {
   const data = defaultMapGetHash(v.room.entity, bullet);
   const coin = metalPiece.getSpawnedMetalPiece(bullet);
 
@@ -251,7 +288,7 @@ export function bulletRemove(bullet: EntityTear | EntityProjectile): void {
   }
 }
 
-export function throwTracer(ent: Entity, dir?: Vector): void {
+function throwTracer(ent: Entity, dir?: Vector): void {
   const eData = defaultMapGetHash(v.room.entity, ent);
   const sData = defaultMapGetHash(v.room.selecter, ent);
 
@@ -358,7 +395,7 @@ export function throwTracer(ent: Entity, dir?: Vector): void {
 // SELECTION
 
 /** Deselect every selected entity from a Selecter Entity */
-export function deselectAllEntities(fromEnt: Entity): void {
+function deselectAllEntities(fromEnt: Entity): void {
   const data = defaultMapGetHash(v.room.selecter, fromEnt);
   if (data.selectedEntities.length > 0) {
     for (const sEntityPtr of data.selectedEntities) {
@@ -374,7 +411,7 @@ export function deselectAllEntities(fromEnt: Entity): void {
 }
 
 /** Deselect a specific entity from the selectedEntities array on the Selecter Entity. */
-export function deselectEntity(sEnt: Entity): void {
+function deselectEntity(sEnt: Entity): void {
   const baseEnt = sEnt;
   const basePtr = GetPtrHash(sEnt);
 
@@ -392,7 +429,8 @@ export function deselectEntity(sEnt: Entity): void {
   }
 }
 
-export function selectEntity(fromEnt: Entity, ent: Entity): void {
+/** Select a entity */
+function selectEntity(fromEnt: Entity, ent: Entity): void {
   const fData = defaultMapGetHash(v.room.selecter, fromEnt);
   const eData = defaultMapGetHash(v.room.entity, ent);
   eData.selected.from = fromEnt;

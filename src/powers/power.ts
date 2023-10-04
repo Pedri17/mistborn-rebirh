@@ -29,7 +29,17 @@ import { g } from "../global";
 import * as allomancyIronSteel from "./allomancyIronSteel";
 
 const preconf = {
-  ALLOMANCY_BAR_MAX: 2500,
+  ALLOMANCY_BAR_MAX: 18000,
+  mineralWaste: new Map<Power, Map<PowerUseType, number>>([
+    [
+      Power.AL_STEEL,
+      new Map<PowerUseType, number>([[PowerUseType.CONTINUOUS, 5]]),
+    ],
+    [
+      Power.AL_IRON,
+      new Map<PowerUseType, number>([[PowerUseType.CONTINUOUS, 5]]),
+    ],
+  ]),
   ui: {
     pos: {
       STOMACH: [
@@ -124,6 +134,7 @@ function isUsingPower(pyr: EntityPlayer) {
         }
       }
       i++;
+      dbg.addMessage("isUsingPower");
     }
   }
   return false;
@@ -139,7 +150,7 @@ function isUsingPower(pyr: EntityPlayer) {
  * @param use PowerUseType. Determines type of power use, it can be ONCE, CONTINUOUS and END and
  *            determines the moment of the press.
  */
-function usePower(ent: Entity, power: Power, use?: PowerUseType) {
+function usePower(ent: Entity, power: Power, use: PowerUseType) {
   let data: PowerOwnerData;
   const pyr = ent.ToPlayer();
   if (ent.ToNPC() !== undefined) {
@@ -160,6 +171,8 @@ function usePower(ent: Entity, power: Power, use?: PowerUseType) {
   if (power === Power.AL_IRON || power === Power.AL_STEEL) {
     allomancyIronSteel.usePower(ent, power, use);
   }
+
+  if (pyr !== undefined) spendMinerals(pyr, power, use);
 }
 
 /**
@@ -200,10 +213,15 @@ function addPower(ent: Entity, power: Power) {
  * @returns Boolean if there's enough mineral to waste. In false case there's not mineral change.
  */
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function spendMinerals(pyr: EntityPlayer, quantity: number): boolean {
+function spendMinerals(
+  pyr: EntityPlayer,
+  power: Power,
+  useType: PowerUseType,
+): boolean {
   const data = g.run.player.getAndSetDefault(getPlayerIndex(pyr));
-  if (data.mineralBar - quantity >= 0) {
-    data.mineralBar -= quantity;
+  const waste = preconf.mineralWaste.get(power)?.get(useType);
+  if (waste !== undefined && data.mineralBar - waste >= 0) {
+    data.mineralBar -= waste;
     return true;
   }
   return false;

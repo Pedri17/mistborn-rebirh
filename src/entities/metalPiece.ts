@@ -31,32 +31,33 @@ import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
 import { g } from "../global";
+import * as entity from "../utils/entity";
 import * as pos from "../utils/position";
 import * as vect from "../utils/vector";
-import * as entity from "./entity";
-
-const ref = {
-  spriteSheet: {
-    metalPieceCoin: [
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_0.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_1.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_2.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_3.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_4.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_5.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_6.png",
-      "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_7.png",
-    ],
-  },
-};
 
 const preconf = {
   STICKED_TIME: 90,
   FRICTION_PICKUP: 0.3,
   COIN_DMG_MULT: 2,
   FIRE_DELAY_MULT: 2,
+
   velocity: {
     MIN_TEAR_TO_HOOK: 20,
+  },
+
+  ref: {
+    spriteSheet: {
+      metalPieceCoin: [
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_0.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_1.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_2.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_3.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_4.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_5.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_6.png",
+        "gfx/effects/metalPiece/coin/spritesheet/metalPiece_coin_7.png",
+      ],
+    },
   },
 };
 
@@ -98,6 +99,29 @@ export function takeCoin(this: void, pyr: EntityPlayer): void {
   }
 }
 
+export function unpinAnchorage(metalPiece: EntityPickup, fromEntity: Entity) {
+  metalPiece.Friction = preconf.FRICTION_PICKUP;
+  const mpData = defaultMapGetHash(v.room.pickup, metalPiece);
+  mpData.anchorage.is = false;
+  let animation;
+
+  if (metalPiece.SubType == MetalPieceSubtype.COIN) {
+    const sprAn = metalPiece.GetSprite().GetAnimation();
+    animation = "Idle" + sprAn.substring(sprAn.length);
+  } else {
+    animation = "Idle";
+  }
+
+  metalPiece.GetSprite().Play(animation, true);
+  metalPiece.Position = Game()
+    .GetRoom()
+    .FindFreeTilePosition(metalPiece.Position, 25);
+  metalPiece.Velocity = vect
+    .director(metalPiece.Position, fromEntity.Position)
+    .Normalized()
+    .mul(3);
+}
+
 // GENERAL
 
 /** Reduce tear delay from a player. */
@@ -111,7 +135,7 @@ function reduceTearDelay(pyr: EntityPlayer) {
 function remove(bullet: EntityTear | EntityProjectile): void {
   const bData = defaultMapGetHash(v.room.bullet, bullet);
 
-  // Spawn Coin
+  // Spawn metal piece pickup.
   if (
     !bData.isPicked &&
     bullet.Variant === BulletVariantCustom.metalPiece &&
@@ -121,7 +145,6 @@ function remove(bullet: EntityTear | EntityProjectile): void {
 
     let anchorageWallAnim: string;
     const anchorageAnim = "Anchorage";
-    // let anchorageAnim: string;
     const sizeAnim: number = getSizeAnimation(bullet);
 
     // Set pickup subtype
@@ -154,32 +177,33 @@ function remove(bullet: EntityTear | EntityProjectile): void {
         bullet.SubType,
         bData.anchoragePosition,
       ).ToPickup();
-      const coin = bData.spawnedMetalPiece;
-      if (coin !== undefined) {
-        const cData = defaultMapGetHash(v.room.pickup, coin);
+      const spwMetalPiece = bData.spawnedMetalPiece;
+      if (spwMetalPiece !== undefined) {
+        const mpData = defaultMapGetHash(v.room.pickup, spwMetalPiece);
 
         // Set anchorage characteristics
-        coin.Friction = 100;
-        cData.anchorage.is = true;
+        spwMetalPiece.Friction = 100;
+        mpData.anchorage.is = true;
 
         // !! Comprobar si es necesario a mayores comprobar si la posición está fuera.
 
         // To wall anchorage.
-        if (pos.isWall(coin.Position)) {
-          cData.anchorage.inWall = true;
-          coin.GetSprite().Play(anchorageWallAnim, true);
-          coin.SpriteRotation = bData.collided.velocity.GetAngleDegrees();
+        if (pos.isWall(spwMetalPiece.Position)) {
+          mpData.anchorage.inWall = true;
+          spwMetalPiece.GetSprite().Play(anchorageWallAnim, true);
+          spwMetalPiece.SpriteRotation =
+            bData.collided.velocity.GetAngleDegrees();
         } else {
           // To grid anchorage.
-          cData.anchorage.inWall = false;
-          cData.anchorage.gridEntityAtached = game
+          mpData.anchorage.inWall = false;
+          mpData.anchorage.gridEntityAtached = game
             .GetRoom()
-            .GetGridEntityFromPos(coin.Position);
-          coin.GetSprite().Play(anchorageAnim, true);
+            .GetGridEntityFromPos(spwMetalPiece.Position);
+          spwMetalPiece.GetSprite().Play(anchorageAnim, true);
         }
       }
     } else {
-      // Just usual tear coins.
+      // Just usual metal piece tears.
       bData.spawnedMetalPiece = spawn(
         EntityType.PICKUP,
         PickupVariantCustom.metalPiece,
@@ -194,20 +218,20 @@ function remove(bullet: EntityTear | EntityProjectile): void {
 
     // Post spawn pickup.
     if (bData.spawnedMetalPiece !== undefined) {
-      const coin = bData.spawnedMetalPiece;
+      const spwMetalPiece = bData.spawnedMetalPiece;
 
       // Ensure that you cant take this tear.
       bData.isPicked = true;
 
       // Collision classes.
       if (bullet.Type === EntityType.TEAR) {
-        coin.EntityCollisionClass = EntityCollisionClass.ENEMIES;
+        spwMetalPiece.EntityCollisionClass = EntityCollisionClass.ENEMIES;
       } else {
-        coin.EntityCollisionClass = EntityCollisionClass.ALL;
+        spwMetalPiece.EntityCollisionClass = EntityCollisionClass.ALL;
       }
 
       // Change size.
-      changeSizeSprite(coin, getSizeAnimation(bullet));
+      changeSizeSprite(spwMetalPiece, getSizeAnimation(bullet));
 
       // TODO: laser interaction
       // TODO: knife interaction
@@ -215,18 +239,18 @@ function remove(bullet: EntityTear | EntityProjectile): void {
       // Adjust scale
       if (tear !== undefined && bullet.SubType === MetalPieceSubtype.COIN) {
         if (sizeAnim === 0 || sizeAnim === 1) {
-          coin.SpriteScale = vect.make(tear.Scale * 2);
+          spwMetalPiece.SpriteScale = vect.make(tear.Scale * 2);
         } else {
-          coin.SpriteScale = vect.make(tear.Scale);
+          spwMetalPiece.SpriteScale = vect.make(tear.Scale);
         }
       }
 
       // Set tear characteristics to pickup.
-      coin.SetColor(bullet.GetColor(), 0, 1, false, false);
-      const cData = defaultMapGetHash(v.room.pickup, coin);
+      spwMetalPiece.SetColor(bullet.GetColor(), 0, 1, false, false);
+      const cData = defaultMapGetHash(v.room.pickup, spwMetalPiece);
       cData.baseDamage = bData.baseDamage;
-      coin.SpawnerEntity = bullet.SpawnerEntity;
-      coin.SubType = bullet.SubType;
+      spwMetalPiece.SpawnerEntity = bullet.SpawnerEntity;
+      spwMetalPiece.SubType = bullet.SubType;
     }
 
     // TODO: Other ludovico interaction
@@ -276,7 +300,7 @@ function getSizeAnimation(bullet: EntityTear | EntityProjectile): number {
 
 function changeSizeSprite(metalPiece: Entity, size: number) {
   const sprite = metalPiece.GetSprite();
-  const img = ref.spriteSheet.metalPieceCoin[size];
+  const img = preconf.ref.spriteSheet.metalPieceCoin[size];
   if (img !== undefined) {
     sprite.ReplaceSpritesheet(0, img);
     sprite.LoadGraphics();
@@ -340,7 +364,7 @@ export class MetalPiece extends ModFeature {
 
       // !! Falta shield tear interaction.
       if (tear.HasTearFlags(TearFlag.SHIELDED)) {
-        // tear.GetSprite().ReplaceSpritesheet(0, ref.SHIELD_COIN_TEAR);
+        // tear.GetSprite().ReplaceSpritesheet(0, preconf.ref.SHIELD_COIN_TEAR);
         tear.GetSprite().LoadGraphics();
       }
     }

@@ -1,8 +1,9 @@
 import { VectorZero } from "isaacscript-common";
 import { FocusSelection } from "../../enums/FocusSelection";
 import { Power } from "../../enums/Power";
+import { EntityData } from "./EntityData";
 
-export class SelecterData {
+export class SelecterData extends EntityData {
   usingPower?: Power = undefined;
   selectedEntities: PtrHash[] = [];
   focusSelection: FocusSelection = FocusSelection.BASE;
