@@ -31,6 +31,7 @@ import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
 import { MetalPieceSubtype } from "../customVariantType/MetalPieceSubtype";
 import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
 import { g } from "../global";
+import { mod } from "../mod";
 import * as entity from "../utils/entity";
 import * as pos from "../utils/position";
 import * as vect from "../utils/vector";
@@ -121,6 +122,10 @@ export function unpinAnchorage(metalPiece: EntityPickup, fromEntity: Entity) {
     .Normalized()
     .mul(3);
 }
+
+// REGISTER PICKUP
+// !! Ver si se está ejecutando o si da problemas
+mod.registerCustomPickup(PickupVariantCustom.metalPiece, 0, takeCoin);
 
 // GENERAL
 

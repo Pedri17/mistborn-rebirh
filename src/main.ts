@@ -1,9 +1,7 @@
 import { ModCallback } from "isaac-typescript-definitions";
 import { initModFeatures } from "isaacscript-common";
 import { TheAllomancer } from "./characters/theAlomancer";
-import { PickupVariantCustom } from "./customVariantType/PickupVariantCustom";
 import * as debug from "./debug";
-import * as metalPiece from "./entities/metalPiece";
 import { MetalPiece } from "./entities/metalPiece";
 import { initGlobal } from "./global";
 import { mod } from "./mod";
@@ -30,11 +28,6 @@ function main() {
   initGlobal();
 
   // Register custom entities
-  mod.registerCustomPickup(
-    PickupVariantCustom.metalPiece,
-    0,
-    metalPiece.takeCoin,
-  );
 }
 
 function testTears(_tear: EntityTear) {}
