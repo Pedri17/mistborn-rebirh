@@ -488,6 +488,12 @@ export class MetalPiece extends ModFeature {
           pickup.SpriteRotation = pickup.Velocity.GetAngleDegrees();
         }
       }
+    } else {
+      // To no anchorage pickup
+      // Change rotation.
+      if (!vectorEquals(pickup.Velocity, VectorZero)) {
+        pickup.SpriteRotation = pickup.Velocity.GetAngleDegrees();
+      }
     }
     // TODO: magneto interaction
   }

@@ -21,7 +21,6 @@ import {
 import { PowerOwnerData } from "../classes/power/PowerOwnerData";
 import * as config from "../config";
 import { CollectibleTypeCustom } from "../customVariantType/CollectibleTypeCustom";
-import * as dbg from "../debug";
 import { collectibleTypeCustomToPower } from "../enums/CollectibleTypeCustomToPower";
 import { Power } from "../enums/Power";
 import { PowerUseType } from "../enums/PowerUseType";
@@ -29,7 +28,7 @@ import { g } from "../global";
 import * as allomancyIronSteel from "./allomancyIronSteel";
 
 const preconf = {
-  ALLOMANCY_BAR_MAX: 18000,
+  ALLOMANCY_BAR_MAX: 5000,
   mineralWaste: new Map<Power, Map<PowerUseType, number>>([
     [
       Power.AL_STEEL,
@@ -112,34 +111,6 @@ function hasPower(ent: Entity, power: Power): boolean {
   return data.powers.includes(power);
 }
 
-/**
- * Check if a player is using a power.
- *
- * @param pyr Player.
- * @returns boolean.
- */
-function isUsingPower(pyr: EntityPlayer) {
-  const pData = defaultMapGetPlayer(g.run.player, pyr);
-  if (
-    pData.powers.length > 0 &&
-    pData.controlsChanged &&
-    pData.mineralBar > 0
-  ) {
-    for (let i = 0; i < pData.powers.length; i++) {
-      const powerAction = config.powerAction[i];
-      const power = pData.powers[i];
-      if (powerAction !== undefined && power !== undefined) {
-        if (isActionTriggered(pyr.ControllerIndex, powerAction)) {
-          return true;
-        }
-      }
-      i++;
-      dbg.addMessage("isUsingPower");
-    }
-  }
-  return false;
-}
-
 // ACTIVE POWER
 /**
  * Use a active power.
@@ -162,17 +133,19 @@ function usePower(ent: Entity, power: Power, use: PowerUseType) {
   }
 
   // Set power on use.
-  if (use === PowerUseType.END) {
-    data.usingPower = undefined;
-  } else {
-    data.usingPower = power;
-  }
+
+  let isUsingPower = false;
 
   if (power === Power.AL_IRON || power === Power.AL_STEEL) {
-    allomancyIronSteel.usePower(ent, power, use);
+    isUsingPower = allomancyIronSteel.usePower(ent, power, use);
   }
 
-  if (pyr !== undefined) spendMinerals(pyr, power, use);
+  if (isUsingPower) {
+    if (pyr !== undefined) spendMinerals(pyr, power, use);
+    if (use !== PowerUseType.END) data.usingPower = power;
+  }
+
+  if (use === PowerUseType.END) data.usingPower = undefined;
 }
 
 /**
@@ -272,7 +245,7 @@ export class Powers extends ModFeature {
           pData.mineralBar / (preconf.ALLOMANCY_BAR_MAX / 17),
         );
 
-        if (isUsingPower(pyr)) {
+        if (pData.usingPower !== undefined) {
           stomachIcon.Play("Burning", false);
         } else {
           stomachIcon.Play("Idle", false);
@@ -367,7 +340,6 @@ export class Powers extends ModFeature {
     for (const pyr of getPlayers(true)) {
       const controller = pyr.ControllerIndex;
       const pData = defaultMapGetPlayer(g.run.player, pyr);
-      dbg.setVariable("Control", pData.controlsChanged, pyr);
 
       // Players that have any power.
       if (hasAnyPower(pyr)) {
@@ -384,17 +356,24 @@ export class Powers extends ModFeature {
             const powerAction = config.powerAction[j];
             const power = pData.powers[j];
             if (powerAction !== undefined && power !== undefined) {
-              if (isActionPressed(controller, powerAction)) {
-                // Has a power on this slot.
-                usePower(pyr, power, PowerUseType.CONTINUOUS);
-              } else {
-                // Is not pressing any button.
-                usePower(pyr, power, PowerUseType.END);
-              }
               if (isActionTriggered(controller, powerAction)) {
                 // Has a power on this slot.
                 usePower(pyr, power, PowerUseType.ONCE);
-                dbg.addMessage("Triggered");
+              }
+
+              if (isActionPressed(controller, powerAction)) {
+                // Has a power on this slot.
+                usePower(pyr, power, PowerUseType.CONTINUOUS);
+                pData.unpressingPowerTimes = 0;
+              } else if (pData.usingPower !== undefined) {
+                pData.unpressingPowerTimes++;
+              }
+
+              if (
+                pData.usingPower !== undefined &&
+                pData.unpressingPowerTimes >= 6
+              ) {
+                usePower(pyr, power, PowerUseType.END);
               }
             }
           }

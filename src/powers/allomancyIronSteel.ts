@@ -2,8 +2,11 @@ import {
   ButtonAction,
   DamageFlagZero,
   EntityType,
+  FamiliarVariant,
   ModCallback,
+  PickupVariant,
   ProjectileVariant,
+  TearFlag,
   TearVariant,
 } from "isaac-typescript-definitions";
 import {
@@ -28,7 +31,9 @@ import {
 import { EntityData } from "../classes/allomancyIronSteel/EntityData";
 import { SelecterData } from "../classes/allomancyIronSteel/SelecterData";
 import { BulletVariantCustom } from "../customVariantType/BulletVariantCustom";
+import { PickupVariantCustom } from "../customVariantType/PickupVariantCustom";
 import * as Debug from "../debug";
+import * as dbg from "../debug";
 import * as metalPiece from "../entities/metalPiece";
 import { FocusSelection } from "../enums/FocusSelection";
 import { Power } from "../enums/Power";
@@ -89,7 +94,11 @@ const v = {
  * @param use PowerUseType. Determines type of power use, it can be ONCE, CONTINUOUS and END and
  *            determines the moment of the press.
  */
-export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
+export function usePower(
+  ent: Entity,
+  power: Power,
+  use?: PowerUseType,
+): boolean {
   if (power === Power.AL_IRON || power === Power.AL_STEEL) {
     switch (use) {
       case PowerUseType.ONCE: {
@@ -97,8 +106,7 @@ export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
         break;
       }
       case PowerUseType.CONTINUOUS: {
-        activePower(ent, power);
-        break;
+        return activePower(ent, power);
       }
       case PowerUseType.END: {
         deselectAllEntities(ent);
@@ -109,6 +117,7 @@ export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
       }
     }
   }
+  return false;
 }
 
 /**
@@ -118,9 +127,11 @@ export function usePower(ent: Entity, power: Power, use?: PowerUseType): void {
  * @param ent
  * @param _power Iron or Steel power to push or pull.
  * @param _dir Optional. Direction for non player entities.
+ * @returns boolean if is using the power.
  */
-function activePower(ent: Entity, power: Power, _dir?: Vector) {
+function activePower(ent: Entity, power: Power, _dir?: Vector): boolean {
   const data = defaultMapGetHash(v.room.selecter, ent);
+  let someEntIsPushed = false;
   for (const selEntPtr of data.selectedEntities) {
     let selEnt = getEntityFromPtrHash(selEntPtr);
     let pushEntity = selEnt; // Entity that is trying to push.
@@ -189,8 +200,10 @@ function activePower(ent: Entity, power: Power, _dir?: Vector) {
       if (data.gridTouched && pushData.gridTouched) {
         deselectEntity(pushEntity); // !! Comprobar si está bien
       }
+      someEntIsPushed = true;
     }
   }
+  return someEntIsPushed;
 }
 
 // !! En proceso
@@ -252,7 +265,8 @@ function getPushVelocity(
       oppositeMul *
         (n / 100) *
         (vect.distanceMult(fromEntity.Position, pushEntity.Position, 600) +
-          baseMul),
+          baseMul) *
+        10,
     );
   } else {
     error("Velocity type is not configured");
@@ -288,6 +302,27 @@ function bulletRemove(bullet: EntityTear | EntityProjectile): void {
   }
 }
 
+function getLastContextualDirection(pyr: EntityPlayer): Vector {
+  const pData = defaultMapGetHash(v.room.selecter, pyr);
+  log("Player direction");
+  let direction = VectorOne;
+
+  // !! Comprobar si me pasé con el threeshold para usar el joystick.
+  if (doesVectorHaveLength(pyr.GetShootingJoystick(), 0.3)) {
+    direction = pyr.GetShootingJoystick();
+  } else if (
+    Isaac.GetFrameCount() - pData.lastShot.frame <=
+    preconf.tracer.MAX_TIME_TO_USE_LAST_SHOT_DIRECTION
+  ) {
+    direction = pData.lastShot.direction;
+  } else if (!vectorEquals(pyr.GetMovementInput(), VectorZero)) {
+    direction = pyr.GetMovementInput();
+  } else if (!vectorEquals(pData.lastShot.direction, VectorZero)) {
+    direction = pData.lastShot.direction;
+  }
+  return direction;
+}
+
 function throwTracer(ent: Entity, dir?: Vector): void {
   const eData = defaultMapGetHash(v.room.entity, ent);
   const sData = defaultMapGetHash(v.room.selecter, ent);
@@ -299,27 +334,10 @@ function throwTracer(ent: Entity, dir?: Vector): void {
 
   // Select direction
   let direction: Vector;
-  if (pyr !== undefined) {
-    // !! Comprobar si me pasé con el threeshold para usar el joystick.
-    if (doesVectorHaveLength(pyr.GetShootingJoystick(), 0.3)) {
-      direction = pyr.GetShootingJoystick();
-    } else if (
-      Isaac.GetFrameCount() - sData.lastShot.frame <=
-      preconf.tracer.MAX_TIME_TO_USE_LAST_SHOT_DIRECTION
-    ) {
-      direction = sData.lastShot.direction;
-    } else if (!vectorEquals(pyr.GetMovementInput(), VectorZero)) {
-      direction = pyr.GetMovementInput();
-    } else if (!vectorEquals(sData.lastShot.direction, VectorZero)) {
-      direction = sData.lastShot.direction;
-    } else {
-      direction = VectorOne;
-    }
-  } else if (dir !== undefined) {
-    direction = dir.Normalized();
-  } else {
-    direction = VectorOne;
-  }
+
+  if (pyr !== undefined) direction = getLastContextualDirection(pyr);
+  else if (dir !== undefined) direction = dir.Normalized();
+  else direction = VectorOne;
 
   // Throw tracer
   let pointer = ent.Position;
@@ -338,9 +356,8 @@ function throwTracer(ent: Entity, dir?: Vector): void {
     if (foundEntities.length > 0) {
       for (const sEntity of foundEntities) {
         const sTear = sEntity.ToTear();
-
         if (
-          entity.isMetalic(sEntity) &&
+          isMetalic(sEntity) &&
           !sData.selectedEntities.includes(GetPtrHash(sEntity))
         ) {
           // Ensure focus selection
@@ -392,10 +409,73 @@ function throwTracer(ent: Entity, dir?: Vector): void {
   }
 }
 
+function isMetalic(ent: Entity): boolean {
+  const pickup = ent.ToPickup();
+  const tear = ent.ToTear();
+  const familiar = ent.ToFamiliar();
+  const knife = ent.ToKnife();
+  const projectile = ent.ToProjectile();
+
+  if (pickup !== undefined) {
+    if (
+      // !! Falta aquí el tipo throwedCoin y mineralBottle.
+      pickup.Variant === PickupVariant.COIN ||
+      pickup.Variant === PickupVariant.KEY ||
+      pickup.Variant === PickupVariant.LOCKED_CHEST ||
+      pickup.Variant === PickupVariant.LIL_BATTERY ||
+      pickup.Variant === PickupVariant.CHEST ||
+      pickup.Variant === PickupVariant.MIMIC_CHEST ||
+      pickup.Variant === PickupVariant.OLD_CHEST ||
+      pickup.Variant === PickupVariant.SPIKED_CHEST ||
+      pickup.Variant === PickupVariant.ETERNAL_CHEST ||
+      pickup.Variant === PickupVariant.HAUNTED_CHEST ||
+      pickup.Variant === PickupVariantCustom.metalPiece ||
+      pickup.Variant === PickupVariantCustom.mineralBottle
+    ) {
+      return true;
+    }
+  } else if (tear !== undefined) {
+    // !! Falta comprobar la tear metálica, si afecta a bosses y ludovico.
+    if (
+      tear.HasTearFlags(TearFlag.CONFUSION) ||
+      tear.HasTearFlags(TearFlag.ATTRACTOR) ||
+      tear.HasTearFlags(TearFlag.GREED_COIN) ||
+      tear.HasTearFlags(TearFlag.MIDAS) ||
+      tear.HasTearFlags(TearFlag.MAGNETIZE)
+    ) {
+      return true;
+    }
+    if (
+      tear.Variant === TearVariant.METALLIC ||
+      tear.Variant === TearVariant.COIN ||
+      tear.Variant === BulletVariantCustom.metalPiece
+    ) {
+      return true;
+    }
+  } else if (familiar !== undefined) {
+    if (familiar.Variant === FamiliarVariant.SAMSONS_CHAINS) {
+      return true;
+    }
+  } else if (knife !== undefined) {
+    // !! Interacción con Knife & data.isThrowable.
+    return true;
+  } else if (projectile !== undefined) {
+    if (
+      projectile.Variant === BulletVariantCustom.metalPiece ||
+      projectile.Variant === ProjectileVariant.COIN ||
+      projectile.Variant === ProjectileVariant.RING
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // SELECTION
 
 /** Deselect every selected entity from a Selecter Entity */
 function deselectAllEntities(fromEnt: Entity): void {
+  //log("Deselect all entities.");
   const data = defaultMapGetHash(v.room.selecter, fromEnt);
   if (data.selectedEntities.length > 0) {
     for (const sEntityPtr of data.selectedEntities) {
@@ -412,6 +492,7 @@ function deselectAllEntities(fromEnt: Entity): void {
 
 /** Deselect a specific entity from the selectedEntities array on the Selecter Entity. */
 function deselectEntity(sEnt: Entity): void {
+  log("Deselect a entity");
   const baseEnt = sEnt;
   const basePtr = GetPtrHash(sEnt);
 
@@ -437,7 +518,6 @@ function selectEntity(fromEnt: Entity, ent: Entity): void {
   eData.selected.is = true;
   eData.gridTouched = false;
   fData.selectedEntities.push(GetPtrHash(ent));
-  Debug.setVariable("Seleccionado", true, ent);
 }
 
 // FOCUS.
@@ -507,8 +587,10 @@ export class AllomancyIronSteel extends ModFeature {
         )
       ) {
         pData.lastShot.frame = game.GetFrameCount();
-        if (vectorEquals(VectorZero, pyr.GetShootingInput())) {
+        if (vectorEquals(VectorZero, pyr.GetShootingJoystick())) {
           pData.lastShot.direction = pyr.GetShootingInput();
+        } else {
+          pData.lastShot.direction = pyr.GetShootingJoystick();
         }
       }
     }
@@ -619,5 +701,23 @@ export class AllomancyIronSteel extends ModFeature {
   )
   tearRemove(bullet: EntityTear) {
     bulletRemove(bullet);
+  }
+
+  //!! TEST
+  @Callback(ModCallback.POST_UPDATE)
+  test() {
+    let pyr = Isaac.GetPlayer();
+    const pData = defaultMapGetHash(v.room.selecter, pyr);
+
+    for (const ent of Isaac.GetRoomEntities()) {
+      //dbg.setVariable("selected", selEntities.includes(GetPtrHash(ent)), ent);
+    }
+
+    for (const sEnt of pData.selectedEntities) {
+      //dbg.addMessage("selected", getEntityFromPtrHash(sEnt));
+      //dbg.setVariable("testing", true, getEntityFromPtrHash(sEnt));
+    }
+
+    dbg.setVariable("selLength", pData.selectedEntities.length, pyr);
   }
 }
